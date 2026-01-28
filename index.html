@@ -5,19 +5,48 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RS Transport Solution | Iqra International School</title>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 50px; background-color: #f4f7f6; }
-        .branding { margin-bottom: 40px; }
-        .menu-box { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
-        .card { 
-            background: white; padding: 30px; width: 200px; 
-            border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            text-decoration: none; color: #333; font-weight: bold;
-            transition: transform 0.2s;
+        :root {
+            --admin-color: #1a73e8;
+            --driver-color: #28a745;
+            --parent-color: #ff9800;
         }
-        .card:hover { transform: translateY(-5px); color: #1a73e8; }
-        .admin-link { border-top: 5px solid #1a73e8; }
-        .driver-link { border-top: 5px solid #28a745; }
-        .parent-link { border-top: 5px solid #ff9800; }
+        body { font-family: 'Segoe UI', sans-serif; text-align: center; padding: 50px 20px; background-color: #f4f7f6; color: #333; margin: 0; }
+        .branding { margin-bottom: 50px; }
+        .branding h1 { font-size: 2.5rem; color: #2c3e50; margin-bottom: 0; }
+        .branding h3 { color: #1a73e8; margin-top: 5px; font-weight: 400; }
+        
+        .menu-box { display: flex; justify-content: center; gap: 25px; flex-wrap: wrap; max-width: 1000px; margin: auto; }
+        
+        .card { 
+            background: white; padding: 35px 20px; width: 240px; 
+            border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+            text-decoration: none; color: #333; 
+            transition: all 0.3s ease;
+            display: flex; flex-direction: column; align-items: center;
+        }
+        
+        .card:hover { transform: translateY(-10px); box-shadow: 0 15px 30px rgba(0,0,0,0.1); }
+        .card i { font-size: 3rem; margin-bottom: 15px; }
+
+        .admin-link { border-bottom: 6px solid var(--admin-color); }
+        .driver-link { border-bottom: 6px solid var(--driver-color); }
+        .parent-link { border-bottom: 6px solid var(--parent-color); }
+
+        .card h2 { margin: 10px 0; font-size: 1.5rem; }
+        .card p { color: #666; font-size: 0.9rem; line-height: 1.4; }
+
+        .login-btn {
+            margin-top: 50px;
+            display: inline-block;
+            padding: 12px 40px;
+            background: #2c3e50;
+            color: white;
+            text-decoration: none;
+            border-radius: 30px;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        .login-btn:hover { background: #1a73e8; }
     </style>
 </head>
 <body>
@@ -25,23 +54,28 @@
     <div class="branding">
         <h1>RS Transport Solution</h1>
         <h3>Iqra International School Tokyo</h3>
-        <p>Select your portal to continue</p>
+        <p>Reliable and safe transport management for our community.</p>
     </div>
 
     <div class="menu-box">
         <a href="admin.html" class="card admin-link">
+            <i>🛡️</i>
             <h2>Admin</h2>
-            <p>Manage Students & Drivers</p>
+            <p>Full system control, registrations, and live route monitoring.</p>
         </a>
         <a href="driver.html" class="card driver-link">
+            <i>🚐</i>
             <h2>Driver</h2>
-            <p>View Routes & Notifications</p>
+            <p>Access assigned routes, update student status, and navigation.</p>
         </a>
         <a href="parent.html" class="card parent-link">
+            <i>🏠</i>
             <h2>Parent</h2>
-            <p>Track Arrival & Schedule</p>
+            <p>Track your child's bus, receive alerts, and manage absences.</p>
         </a>
     </div>
+
+    <a href="login.html" class="login-btn">Secure Login Portal</a>
 
 </body>
 </html>
