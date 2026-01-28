@@ -14,27 +14,27 @@
         .container { width: 95%; max-width: 1200px; margin: 20px auto; }
         .hidden { display: none !important; }
         
-        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 25px; }
-        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+        /* Fixed Form Overlap */
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 25px; }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
         .full-width { grid-column: 1 / -1; }
 
         .portal-tag { padding: 4px 12px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; color: white; text-transform: uppercase; }
         .bg-admin { background: var(--admin); } .bg-driver { background: var(--driver); } .bg-parent { background: var(--parent); }
 
-        input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; }
-        button { padding: 10px 15px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; }
-        .btn-main { background: var(--admin); color: white; width: 100%; }
+        input, select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        button { padding: 12px 15px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
         
-        /* Driver Sequential Button Styles */
-        .btn-step { background: var(--driver); color: white; width: 100%; }
-        .btn-completed { background: var(--done) !important; color: white; opacity: 0.7; cursor: default; }
+        /* Driver Sequential Button Colors */
+        .btn-ready { background: var(--driver); color: white; }
+        .btn-gray { background: var(--done); color: white; opacity: 0.6; pointer-events: none; }
 
-        .table-wrapper { overflow-x: auto; margin-top: 10px; }
+        .table-wrapper { overflow-x: auto; margin-top: 15px; }
         table { width: 100%; border-collapse: collapse; min-width: 900px; }
-        th, td { text-align: left; padding: 12px; border-bottom: 1px solid #eee; font-size: 0.8rem; }
+        th, td { text-align: left; padding: 14px; border-bottom: 1px solid #eee; font-size: 0.85rem; }
         th { background: #f8fafc; color: #64748b; }
 
-        .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+        .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
     </style>
 </head>
 <body>
@@ -45,7 +45,7 @@
             <p style="margin:0; font-size:0.7rem; opacity:0.8;">Iqra International School Tokyo</p>
         </div>
         <div id="userInfo" class="hidden" style="text-align: right;">
-            <div id="userDisplayName" style="font-weight: bold; font-size: 0.9rem;"></div>
+            <div id="userDisplayName" style="font-weight: bold;"></div>
             <div id="portalLabel"></div>
         </div>
     </header>
@@ -55,16 +55,15 @@
             <h2>System Login</h2>
             <form id="loginForm">
                 <input type="email" id="email" placeholder="Email" required style="margin-bottom:10px;">
-                <input type="password" id="password" placeholder="Password" required style="margin-bottom:15px;">
-                <button type="submit" class="btn-main">Login</button>
+                <input type="password" id="password" placeholder="Password" required style="margin-bottom:20px;">
+                <button type="submit" style="background:var(--admin); color:white; width:100%;">Login</button>
             </form>
         </div>
 
         <div id="dashboardSection" class="hidden">
             <div style="display:flex; justify-content: flex-end; margin-bottom: 15px;">
-                <button onclick="window.handleLogout()" style="background:#64748b; color:white; font-size:0.8rem;">Logout</button>
+                <button onclick="window.handleLogout()" style="background:#64748b; color:white;">Logout</button>
             </div>
-            <div id="adminStatsArea"></div>
             <div id="dynamicContent"></div>
         </div>
     </div>
@@ -102,7 +101,7 @@
                 label.className = `portal-tag bg-${data.role}`;
                 document.getElementById('userInfo').classList.remove('hidden');
                 
-                // Pre-load driver data for Parent Portal identification
+                // Pre-fetch all drivers so Parent Portal doesn't show "N/A"
                 onSnapshot(query(collection(db, "users"), where("role", "==", "driver")), (dSnap) => {
                     dSnap.forEach(d => { driverMap[d.data().uid] = d.data(); });
                     initDashboard(data);
@@ -123,17 +122,18 @@
         else renderParent(target, user.uid);
     }
 
-    // --- LOGIC: SINGLE LINE HISTORY & SEQUENTIAL BUTTONS ---
+    // --- SHARED DATA LOGGING ---
     window.logStatus = async (sid, sName, field) => {
-        const now = new Date();
-        const dateKey = now.toISOString().split('T')[0];
-        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const docId = `${sid}_${dateKey}`;
+        const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+        const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const docId = `${sid}_${today}`;
 
+        // Update current status for live feed
         await updateDoc(doc(db, "students", sid), { status: field.replace('_', ' ').toUpperCase() });
 
-        await setDoc(doc(doc(db, "history", docId)), {
-            date: dateKey,
+        // Update single-line history
+        await setDoc(doc(db, "history", docId), {
+            date: today,
             studentName: sName,
             studentId: sid,
             [field]: timeStr,
@@ -141,40 +141,40 @@
         }, { merge: true });
     };
 
-    // --- ADMIN VIEW (ALL PREVIOUS FEATURES INTACT) ---
+    // --- ADMIN VIEW ---
     function renderAdmin(target) {
         target.innerHTML = `
-            <div class="card" style="border-top: 5px solid var(--driver)">
-                <h3>1. Register Driver</h3>
+            <div class="card" style="border-top:5px solid var(--driver)">
+                <h3>1. Driver Registration</h3>
                 <form id="regDriverForm" class="form-grid">
-                    <input type="text" id="dName" placeholder="Full Name" required>
-                    <input type="email" id="dEmail" placeholder="Email" required>
-                    <input type="text" id="dPhone" placeholder="Phone" required>
-                    <input type="text" id="dCar" placeholder="Vehicle Info" required>
-                    <input type="password" id="dPass" placeholder="Password" required>
-                    <button type="submit" class="btn-save">Create Driver Account</button>
+                    <input type="text" id="dName" placeholder="Driver Full Name" required>
+                    <input type="email" id="dEmail" placeholder="Login Email" required>
+                    <input type="text" id="dPhone" placeholder="Phone Number" required>
+                    <input type="text" id="dCar" placeholder="Car Plate / Model" required>
+                    <input type="password" id="dPass" placeholder="Set Password" required>
+                    <button type="submit" style="background:var(--driver); color:white;">Add Driver</button>
                 </form>
             </div>
 
-            <div class="card" style="border-top: 5px solid var(--admin)">
-                <h3>2. Student & Family Registration</h3>
+            <div class="card" style="border-top:5px solid var(--admin)">
+                <h3>2. Student & Parent Registration</h3>
                 <form id="regStForm" class="form-grid">
-                    <input type="text" id="sName" placeholder="Student Name" required>
+                    <input type="text" id="sName" placeholder="Student Full Name" required>
                     <input type="text" id="sFather" placeholder="Father's Name">
-                    <input type="text" id="sFPhone" placeholder="Father's Contact">
+                    <input type="text" id="sFPhone" placeholder="Father's Phone">
                     <input type="text" id="sMother" placeholder="Mother's Name">
-                    <input type="text" id="sMPhone" placeholder="Mother's Contact">
-                    <select id="sPrimary"><option value="Father">Primary Contact: Father</option><option value="Mother">Primary Contact: Mother</option></select>
+                    <input type="text" id="sMPhone" placeholder="Mother's Phone">
+                    <select id="sPrimary"><option value="Father">Primary: Father</option><option value="Mother">Primary: Mother</option></select>
                     <input type="email" id="sPEmail" placeholder="Parent Email" required>
                     <input type="password" id="sPPass" placeholder="Parent Password" required>
-                    <input type="text" id="sAddr" placeholder="Home Address" class="full-width">
+                    <input type="text" id="sAddr" placeholder="Home/Pickup Address" class="full-width">
                     <select id="sDriverSelect" class="full-width"><option value="">Assign Driver...</option></select>
-                    <button type="submit" class="btn-main full-width">Complete Registration</button>
+                    <button type="submit" style="background:var(--admin); color:white;" class="full-width">Register Student & Family</button>
                 </form>
             </div>
 
             <div class="card">
-                <h3>Daily Transport History (Consolidated)</h3>
+                <h3>Daily Transport History Log</h3>
                 <div class="table-wrapper">
                     <table>
                         <thead><tr><th>Date</th><th>Student</th><th>Morn Pick</th><th>Morn Drop</th><th>Ret Pick</th><th>Ret Drop</th></tr></thead>
@@ -184,27 +184,16 @@
             </div>
 
             <div class="card">
-                <h3>Driver Management</h3>
-                <div class="table-wrapper">
-                    <table>
-                        <thead><tr><th>Name</th><th>Phone</th><th>Vehicle (Click to Edit)</th><th>Action</th></tr></thead>
-                        <tbody id="adminDrBody"></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="card">
                 <h3>Live Student Feed</h3>
                 <div class="table-wrapper">
                     <table>
-                        <thead><tr><th>Student</th><th>Primary Phone</th><th>Assigned Driver</th><th>Current Status</th><th>Action</th></tr></thead>
+                        <thead><tr><th>Student</th><th>Parent Phone</th><th>Driver</th><th>Current Status</th><th>Action</th></tr></thead>
                         <tbody id="stBody"></tbody>
                     </table>
                 </div>
-            </div>
-        `;
+            </div>`;
 
-        // Listeners for Admin tables
+        // History Snapshot
         onSnapshot(query(collection(db, "history"), orderBy("date", "desc"), limit(50)), (snap) => {
             const hBody = document.getElementById('historyBody');
             if(hBody) {
@@ -218,31 +207,25 @@
             }
         });
 
+        // Student Table Snapshot
         onSnapshot(collection(db, "students"), (snap) => {
             const body = document.getElementById('stBody');
+            const select = document.getElementById('sDriverSelect');
             if(body) {
                 body.innerHTML = "";
                 snap.forEach(docSnap => {
                     const s = docSnap.data();
                     const dName = driverMap[s.driverUid]?.fullName || "Unassigned";
                     body.innerHTML += `<tr><td><strong>${s.name}</strong></td><td>${s.fPhone || s.mPhone}</td>
-                        <td>${dName}</td><td>${s.status}</td>
-                        <td><button class="btn-del" onclick="window.delDoc('students','${docSnap.id}')">Delete</button></td></tr>`;
+                        <td>${dName}</td><td><span class="portal-tag bg-driver">${s.status}</span></td>
+                        <td><button style="color:var(--danger)" onclick="window.delDoc('students','${docSnap.id}')">Delete</button></td></tr>`;
                 });
             }
-        });
-
-        onSnapshot(query(collection(db, "users"), where("role", "==", "driver")), (snap) => {
-            const drTable = document.getElementById('adminDrBody');
-            const select = document.getElementById('sDriverSelect');
-            if(drTable && select) {
-                drTable.innerHTML = ""; select.innerHTML = '<option value="">Assign Driver...</option>';
-                snap.forEach(d => {
-                    const data = d.data();
-                    drTable.innerHTML += `<tr><td>${data.fullName}</td><td>${data.phone}</td>
-                        <td><button class="btn-edit" style="background:var(--admin); color:white; font-size:0.7rem;" onclick="window.editVehicle('${d.id}', '${data.assignedCar}')">${data.assignedCar}</button></td>
-                        <td><button class="btn-del" onclick="window.delDoc('users','${d.id}')">Remove</button></td></tr>`;
-                    select.innerHTML += `<option value="${data.uid}">${data.fullName}</option>`;
+            // Update the dropdowns with current drivers
+            if(select) {
+                select.innerHTML = '<option value="">Assign Driver...</option>';
+                Object.keys(driverMap).forEach(uid => {
+                    select.innerHTML += `<option value="${uid}">${driverMap[uid].fullName}</option>`;
                 });
             }
         });
@@ -251,7 +234,7 @@
             e.preventDefault();
             const cred = await createUserWithEmailAndPassword(secAuth, dEmail.value, dPass.value);
             await addDoc(collection(db, "users"), { uid: cred.user.uid, fullName: dName.value, email: dEmail.value, role: "driver", phone: dPhone.value, assignedCar: dCar.value });
-            await signOut(secAuth); alert("Driver Account Created!"); e.target.reset();
+            await signOut(secAuth); alert("Driver Created!"); e.target.reset();
         };
 
         document.getElementById('regStForm').onsubmit = async (e) => {
@@ -266,82 +249,73 @@
         };
     }
 
-    // --- DRIVER VIEW (SEQUENTIAL BUTTONS) ---
+    // --- DRIVER VIEW ---
     function renderDriver(target, uid) {
-        target.innerHTML = `<div class="card"><h3>Pickup Route</h3><div id="dList"></div></div>`;
-        const todayKey = new Date().toISOString().split('T')[0];
+        target.innerHTML = `<div class="card"><h3>My Active Route</h3><div id="dList"></div></div>`;
+        const today = new Date().toLocaleDateString('en-CA');
 
         onSnapshot(query(collection(db, "students"), where("driverUid", "==", uid)), (snap) => {
             const list = document.getElementById('dList');
-            list.innerHTML = snap.empty ? "No students assigned." : "";
+            list.innerHTML = "";
             snap.forEach(docSnap => {
                 const s = docSnap.data();
                 const sid = docSnap.id;
-                const hDocId = `${sid}_${todayKey}`;
+                list.innerHTML += `
+                    <div class="card" style="border-left:5px solid var(--driver)">
+                        <strong>${s.name}</strong><br><small>${s.address}</small>
+                        <div class="status-grid" id="btns_${sid}">
+                            <button id="bp1_${sid}" class="btn-ready" onclick="window.logStatus('${sid}', '${s.name}', 'morn_pick')">Morn Pick</button>
+                            <button id="bp2_${sid}" class="btn-ready" onclick="window.logStatus('${sid}', '${s.name}', 'morn_drop')">Morn Drop</button>
+                            <button id="bp3_${sid}" class="btn-ready" onclick="window.logStatus('${sid}', '${s.name}', 'ret_pick')">Ret Pick</button>
+                            <button id="bp4_${sid}" class="btn-ready" onclick="window.logStatus('${sid}', '${s.name}', 'ret_drop')">Ret Drop</button>
+                        </div>
+                    </div>`;
 
-                // Create a container for the student row
-                const rowId = `row_${sid}`;
-                list.innerHTML += `<div class="card" id="${rowId}" style="border-left:5px solid var(--driver)">
-                    <strong>${s.name}</strong><br><small>${s.address}</small>
-                    <div class="status-grid" id="btns_${sid}">
-                        <button id="btn1_${sid}" class="btn-step" onclick="window.logStatus('${sid}', '${s.name}', 'morn_pick')">Morn Pick</button>
-                        <button id="btn2_${sid}" class="btn-step" onclick="window.logStatus('${sid}', '${s.name}', 'morn_drop')">Morn Drop</button>
-                        <button id="btn3_${sid}" class="btn-step" onclick="window.logStatus('${sid}', '${s.name}', 'ret_pick')">Ret Pick</button>
-                        <button id="btn4_${sid}" class="btn-step" onclick="window.logStatus('${sid}', '${s.name}', 'ret_drop')">Ret Drop</button>
-                    </div>
-                </div>`;
-
-                // Update Button Colors based on History
-                onSnapshot(doc(db, "history", hDocId), (hSnap) => {
+                // Real-time button color logic
+                onSnapshot(doc(db, "history", `${sid}_${today}`), (hSnap) => {
                     const h = hSnap.exists() ? hSnap.data() : {};
-                    const b1 = document.getElementById(`btn1_${sid}`);
-                    const b2 = document.getElementById(`btn2_${sid}`);
-                    const b3 = document.getElementById(`btn3_${sid}`);
-                    const b4 = document.getElementById(`btn4_${sid}`);
-
-                    if(b1 && b2 && b3 && b4) {
-                        if(h.morn_pick) b1.className = "btn-completed";
-                        if(h.morn_drop) b2.className = "btn-completed";
-                        if(h.ret_pick) b3.className = "btn-completed";
-                        if(h.ret_drop) b4.className = "btn-completed";
-                    }
+                    if(h.morn_pick) document.getElementById(`bp1_${sid}`).className = "btn-gray";
+                    if(h.morn_drop) document.getElementById(`bp2_${sid}`).className = "btn-gray";
+                    if(h.ret_pick) document.getElementById(`bp3_${sid}`).className = "btn-gray";
+                    if(h.ret_drop) document.getElementById(`bp4_${sid}`).className = "btn-gray";
                 });
             });
         });
     }
 
-    // --- PARENT VIEW (WITH HISTORY & DRIVER INFO) ---
+    // --- PARENT VIEW ---
     function renderParent(target, uid) {
         onSnapshot(query(collection(db, "students"), where("parentUid", "==", uid)), (snap) => {
             target.innerHTML = "";
             snap.forEach(docSnap => {
                 const s = docSnap.data();
-                const d = driverMap[s.driverUid] || { fullName: "Awaiting Driver", assignedCar: "N/A", phone: "N/A" };
+                const d = driverMap[s.driverUid] || { fullName: "Awaiting Assignment", assignedCar: "N/A", phone: "N/A" };
                 
                 target.innerHTML += `
                     <div class="card" style="text-align:center; border-top:10px solid var(--parent)">
-                        <h2 style="margin:0">${s.name}</h2>
+                        <h2>${s.name}</h2>
                         <div style="background:#fff7ed; border:2px dashed var(--parent); padding:20px; margin:15px 0; border-radius:15px;">
-                            <p style="margin:0; font-size:0.8rem; font-weight:bold; color:var(--parent)">CURRENT LOCATION STATUS</p>
-                            <h1 style="margin:10px 0; color:var(--dark); text-transform:uppercase;">${s.status}</h1>
+                            <p style="margin:0; font-size:0.8rem; font-weight:bold; color:var(--parent)">CURRENT STATUS</p>
+                            <h1 style="margin:5px 0;">${s.status}</h1>
                         </div>
                         <div style="text-align:left; background:#f8fafc; padding:15px; border-radius:10px; border-left:5px solid var(--admin);">
-                            <p style="margin:0 0 8px 0; font-weight:bold; color:var(--admin)">DRIVER & VEHICLE INFORMATION</p>
-                            <p style="margin:4px 0;"><strong>Name:</strong> ${d.fullName}</p>
-                            <p style="margin:4px 0;"><strong>Phone:</strong> ${d.phone}</p>
-                            <p style="margin:4px 0;"><strong>Vehicle:</strong> ${d.assignedCar}</p>
+                            <p style="font-weight:bold; color:var(--admin); margin:0 0 10px 0;">DRIVER & CAR INFO</p>
+                            <p><strong>Driver:</strong> ${d.fullName}</p>
+                            <p><strong>Phone:</strong> ${d.phone}</p>
+                            <p><strong>Vehicle:</strong> ${d.assignedCar}</p>
                         </div>
-                        <div class="table-wrapper" style="margin-top:20px;">
-                            <p style="text-align:left; font-weight:bold;">Student History Log</p>
-                            <table style="min-width:100%;">
+                        <div class="table-wrapper">
+                            <h4 style="text-align:left;">Student Trip History</h4>
+                            <table>
                                 <thead><tr><th>Date</th><th>M.Pick</th><th>M.Drop</th><th>R.Pick</th><th>R.Drop</th></tr></thead>
-                                <tbody id="pHistory_${docSnap.id}"></tbody>
+                                <tbody id="phistory_${docSnap.id}"></tbody>
                             </table>
                         </div>
                     </div>`;
 
+                // History for this specific student in Parent Portal
                 onSnapshot(query(collection(db, "history"), where("studentId", "==", docSnap.id), orderBy("date", "desc"), limit(5)), (hSnap) => {
-                    const ph = document.getElementById(`pHistory_${docSnap.id}`);
+                    const ph = document.getElementById(`phistory_${docSnap.id}`);
                     if(ph) {
                         ph.innerHTML = "";
                         hSnap.forEach(hDoc => {
@@ -355,17 +329,7 @@
     }
 
     window.handleLogout = () => signOut(auth);
-    window.delDoc = async (c, id) => { if(confirm("Permanently delete?")) await deleteDoc(doc(db, c, id)); };
-    window.editVehicle = async (docId, current) => {
-        const newVal = prompt("Update Vehicle Information:", current);
-        if(newVal) await updateDoc(doc(db, "users", docId), { assignedCar: newVal });
-    };
-
-    document.getElementById('loginForm').onsubmit = async (e) => {
-        e.preventDefault();
-        try { await signInWithEmailAndPassword(auth, email.value, password.value); }
-        catch (err) { alert("Login Error: " + err.message); }
-    };
+    window.delDoc = async (c, id) => { if(confirm("Delete record?")) await deleteDoc(doc(db, c, id)); };
 
 </script>
 </body>
