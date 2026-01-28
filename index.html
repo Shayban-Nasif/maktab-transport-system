@@ -3,78 +3,158 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RS Transport Solution | Iqra International School</title>
+    <title>RS Transport Solution</title>
     <style>
-        :root {
-            --admin-color: #1a73e8;
-            --driver-color: #28a745;
-            --parent-color: #ff9800;
-        }
-        body { font-family: 'Segoe UI', sans-serif; text-align: center; padding: 50px 20px; background-color: #f4f7f6; color: #333; margin: 0; }
+        :root { --primary: #1a73e8; --driver: #28a745; --parent: #ff9800; --bg: #f0f2f5; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
         
-        .branding { margin-bottom: 50px; }
-        .branding h1 { font-size: 2.5rem; color: #2c3e50; margin-bottom: 0; }
-        .branding h3 { color: #1a73e8; margin-top: 5px; font-weight: 400; }
-        .branding p { color: #666; max-width: 600px; margin: 15px auto; }
+        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 90%; max-width: 500px; }
+        .hidden { display: none !important; }
         
-        .menu-box { display: flex; justify-content: center; gap: 25px; flex-wrap: wrap; max-width: 1000px; margin: auto; }
+        /* Login UI */
+        .login-box { text-align: center; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
         
-        .card { 
-            background: white; padding: 35px 20px; width: 260px; 
-            border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.05);
-            text-decoration: none; color: #333; 
-            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-            display: flex; flex-direction: column; align-items: center;
-            border-top: 6px solid transparent;
-        }
+        /* Dashboard UI */
+        .dashboard { width: 100%; max-width: 800px; background: white; padding: 20px; border-radius: 12px; }
+        .nav { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px; }
+        .logout-btn { background: #555; width: auto; padding: 8px 15px; font-size: 0.8rem; }
         
-        .card:hover { transform: translateY(-10px); box-shadow: 0 15px 30px rgba(0,0,0,0.1); }
-        .card i { font-size: 3.5rem; margin-bottom: 15px; }
+        .role-badge { padding: 5px 10px; border-radius: 4px; font-size: 0.8rem; color: white; text-transform: uppercase; }
+        .admin-bg { background: var(--primary); }
+        .driver-bg { background: var(--driver); }
+        .parent-bg { background: var(--parent); }
 
-        .admin-link { border-top-color: var(--admin-color); }
-        .driver-link { border-top-color: var(--driver-color); }
-        .parent-link { border-top-color: var(--parent-color); }
-
-        .card h2 { margin: 10px 0; font-size: 1.5rem; color: #2c3e50; }
-        .card p { color: #777; font-size: 0.95rem; line-height: 1.5; margin: 0; }
-
-        @media (max-width: 600px) {
-            .card { width: 100%; }
-            body { padding: 30px 15px; }
-        }
+        .card { border: 1px solid #eee; padding: 15px; border-radius: 8px; margin-top: 15px; }
     </style>
 </head>
 <body>
 
-    <div class="branding">
-        <h1>RS Transport Solution</h1>
-        <h3>Iqra International School Tokyo</h3>
-        <p>Reliable and safe transport management for our community.</p>
+    <div id="loginSection" class="container">
+        <div class="login-box">
+            <h1 style="color:var(--primary)">RS Transport</h1>
+            <p>Iqra International School Tokyo</p>
+            <form id="loginForm">
+                <input type="email" id="email" placeholder="Email Address" required>
+                <input type="password" id="password" placeholder="Password" required>
+                <button type="submit" id="loginBtn">Sign In</button>
+            </form>
+            <p id="errorMsg" style="color:red; font-size:0.8rem;"></p>
+        </div>
     </div>
 
-    <div class="menu-box">
-        <a href="admin.html" class="card admin-link">
-            <i>🛡️</i>
-            <h2>Admin Portal</h2>
-            <p>System management, user registrations, and live monitoring.</p>
-        </a>
+    <div id="dashboardSection" class="dashboard hidden">
+        <div class="nav">
+            <div>
+                <h2 id="userName" style="margin:0">Welcome</h2>
+                <span id="roleBadge" class="role-badge">Role</span>
+            </div>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
 
-        <a href="driver.html" class="card driver-link">
-            <i>🚐</i>
-            <h2>Driver Portal</h2>
-            <p>Assigned student lists, route updates, and navigation.</p>
-        </a>
-
-        <a href="parent.html" class="card parent-link">
-            <i>🏠</i>
-            <h2>Parent Portal</h2>
-            <p>Live bus tracking, school notices, and student status.</p>
-        </a>
+        <div id="roleContent">
+            </div>
     </div>
 
-    <footer style="margin-top: 60px; color: #aaa; font-size: 0.8rem;">
-        &copy; 2026 RS Transport Solution | Iqra International School
-    </footer>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+        const firebaseConfig = {
+            apiKey: "AIzaSyCS163x5b5-MJXxJGwbjE0IlO7R58CkJMg",
+            authDomain: "maktab-transport.firebaseapp.com",
+            projectId: "maktab-transport",
+            storageBucket: "maktab-transport.firebasestorage.app",
+            messagingSenderId: "575357634901",
+            appId: "1:575357634901:web:4918fb77b0c21965af07dc"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // 1. Monitor Auth State
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                // User is logged in, fetch their role
+                const q = query(collection(db, "users"), where("uid", "==", user.uid));
+                const snap = await getDocs(q);
+                
+                if (!snap.empty) {
+                    const userData = snap.docs[0].data();
+                    showDashboard(userData);
+                }
+            } else {
+                // User is logged out
+                document.getElementById('loginSection').classList.remove('hidden');
+                document.getElementById('dashboardSection').classList.add('hidden');
+                // Center the body for login
+                document.body.style.alignItems = "center";
+            }
+        });
+
+        // 2. Login Logic
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const btn = document.getElementById('loginBtn');
+            
+            btn.innerText = "Processing...";
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+            } catch (err) {
+                document.getElementById('errorMsg').innerText = "Invalid Credentials";
+                btn.innerText = "Sign In";
+            }
+        });
+
+        // 3. UI Router (The Core of the System)
+        function showDashboard(user) {
+            document.getElementById('loginSection').classList.add('hidden');
+            document.getElementById('dashboardSection').classList.remove('hidden');
+            document.body.style.alignItems = "flex-start"; // Align to top for dashboards
+            document.body.style.paddingTop = "40px";
+
+            document.getElementById('userName').innerText = user.email.split('@')[0].toUpperCase();
+            const badge = document.getElementById('roleBadge');
+            badge.innerText = user.role;
+            
+            const content = document.getElementById('roleContent');
+            
+            if (user.role === 'admin') {
+                badge.className = "role-badge admin-bg";
+                content.innerHTML = `
+                    <div class="card">
+                        <h3>Admin Tools</h3>
+                        <p>Welcome to the control center. You can manage drivers and parents here.</p>
+                        <button onclick="alert('Open Registration')">Manage Users</button>
+                    </div>`;
+            } else if (user.role === 'driver') {
+                badge.className = "role-badge driver-bg";
+                content.innerHTML = `
+                    <div class="card">
+                        <h3>My Daily Route</h3>
+                        <p>View your assigned students and update their status.</p>
+                        <button onclick="alert('Load Route')">View Route</button>
+                    </div>`;
+            } else {
+                badge.className = "role-badge parent-bg";
+                content.innerHTML = `
+                    <div class="card">
+                        <h3>Child Tracking</h3>
+                        <p>Check the live location of your child's bus.</p>
+                        <button onclick="alert('Load Map')">Track Bus</button>
+                    </div>`;
+            }
+        }
+
+        // 4. Logout
+        window.logout = () => {
+            signOut(auth);
+        };
+    </script>
 </body>
 </html>
