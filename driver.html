@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Driver - RS Transport Solution</title>
+    <style>
+        body { font-family: sans-serif; background-color: #e8f5e9; margin: 0; padding: 15px; }
+        .header { text-align: center; background: #2e7d32; color: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .branding-sub { font-size: 0.8em; opacity: 0.9; }
+        
+        .student-card { 
+            background: white; border-radius: 10px; padding: 15px; margin-bottom: 15px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 6px solid #2e7d32;
+        }
+        .student-info h3 { margin: 0; color: #333; }
+        .student-info p { margin: 5px 0; color: #666; font-size: 0.9em; }
+        
+        .actions { display: flex; gap: 10px; margin-top: 10px; }
+        .btn { flex: 1; padding: 12px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; text-align: center; text-decoration: none; }
+        .btn-notify { background-color: #ff9800; color: white; }
+        .btn-map { background-color: #1a73e8; color: white; }
+        
+        #loading { text-align: center; color: #666; padding: 20px; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="branding-sub">Iqra International School Tokyo</div>
+        <div style="font-size: 1.4em; font-weight: bold;">RS Transport Solution</div>
+        <p>Driver Dispatch View</p>
+    </div>
+
+    <div id="loading">Loading assigned students...</div>
+    <div id="driverList"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCS163x5b5-MJXxJGwbjE0IlO7R58CkJMg",
+            authDomain: "maktab-transport.firebaseapp.com",
+            projectId: "maktab-transport",
+            storageBucket: "maktab-transport.firebasestorage.app",
+            messagingSenderId: "575357634901",
+            appId: "1:575357634901:web:4918fb77b0c21965af07dc"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const driverList = document.getElementById('driverList');
+        const loading = document.getElementById('loading');
+
+        // Fetch students in real-time
+        onSnapshot(collection(db, "students"), (snapshot) => {
+            loading.style.display = "none";
+            driverList.innerHTML = "";
+            
+            snapshot.forEach((docData) => {
+                const student = docData.data();
+                
+                const card = `
+                    <div class="student-card">
+                        <div class="student-info">
+                            <h3>${student.name}</h3>
+                            <p><strong>Parent:</strong> ${student.parentName}</p>
+                            <p><strong>Address:</strong> ${student.pickup}</p>
+                        </div>
+                        <div class="actions">
+                            <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(student.pickup)}" 
+                               target="_blank" class="btn btn-map">📍 Navigate</a>
+                            <button class="btn btn-notify" onclick="sendNotice('${student.name}')">🔔 Notify Arrival</button>
+                        </div>
+                    </div>
+                `;
+                driverList.innerHTML += card;
+            });
+        });
+
+        // Simple function for notification (we will build the parent side next)
+        window.sendNotice = (name) => {
+            alert("Notification sent to " + name + "'s parent!");
+            // Later, we will add code here to update Firebase to "Bumping" status
+        };
+    </script>
+</body>
+</html>
