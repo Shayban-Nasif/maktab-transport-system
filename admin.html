@@ -5,71 +5,116 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin - RS Transport Solution</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; max-width: 500px; margin: auto; }
-        .branding { text-align: center; color: #1a73e8; }
-        form { display: flex; flex-direction: column; gap: 10px; }
-        input, button { padding: 10px; }
-        button { background-color: #1a73e8; color: white; border: none; cursor: pointer; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background-color: #f4f7f6; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .branding { text-align: center; color: #1a73e8; margin-bottom: 30px; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        h2 { color: #333; }
+        form { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 30px; }
+        input { padding: 12px; border: 1px solid #ddd; border-radius: 5px; }
+        button.add-btn { grid-column: span 2; background-color: #28a745; color: white; border: none; padding: 12px; cursor: pointer; font-weight: bold; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { text-align: left; padding: 12px; border-bottom: 1px solid #ddd; }
+        th { background-color: #f8f9fa; }
+        .delete-btn { background-color: #dc3545; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px; }
     </style>
 </head>
 <body>
 
+<div class="container">
     <div class="branding">
         <h1>RS Transport Solution</h1>
-        <p>Iqra International School Tokyo</p>
+        <p>Official Portal | Iqra International School Tokyo</p>
     </div>
 
-    <h3>Add New Student</h3>
+    <h2>Register New Student</h2>
     <form id="studentForm">
         <input type="text" id="studentName" placeholder="Student Name" required>
         <input type="text" id="parentName" placeholder="Parent's Name" required>
         <input type="tel" id="parentPhone" placeholder="Parent Phone Number" required>
         <input type="text" id="pickupLocation" placeholder="Pickup Address" required>
-        <button type="submit">Register Student</button>
+        <button type="submit" class="add-btn">Add Student to Database</button>
     </form>
 
-    <p id="message"></p>
+    <hr>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    <h2>Active Student List</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Parent</th>
+                <th>Phone</th>
+                <th>Pickup</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody id="studentTableBody">
+            </tbody>
+    </table>
+</div>
 
-        // Your Firebase Configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyCS163x5b5-MJXxJGwbjE0IlO7R58CkJMg",
-            authDomain: "maktab-transport.firebaseapp.com",
-            projectId: "maktab-transport",
-            storageBucket: "maktab-transport.firebasestorage.app",
-            messagingSenderId: "575357634901",
-            appId: "1:575357634901:web:4918fb77b0c21965af07dc"
-        };
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+    const firebaseConfig = {
+        apiKey: "AIzaSyCS163x5b5-MJXxJGwbjE0IlO7R58CkJMg",
+        authDomain: "maktab-transport.firebaseapp.com",
+        projectId: "maktab-transport",
+        storageBucket: "maktab-transport.firebasestorage.app",
+        messagingSenderId: "575357634901",
+        appId: "1:575357634901:web:4918fb77b0c21965af07dc"
+    };
 
-        // Handle Form Submission
-        const studentForm = document.getElementById('studentForm');
-        studentForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const msg = document.getElementById('message');
-            
-            try {
-                await addDoc(collection(db, "students"), {
-                    name: document.getElementById('studentName').value,
-                    parentName: document.getElementById('parentName').value,
-                    phone: document.getElementById('parentPhone').value,
-                    pickup: document.getElementById('pickupLocation').value,
-                    school: "Iqra International School Tokyo",
-                    timestamp: new Date()
-                });
-                msg.innerText = "Student added successfully!";
-                studentForm.reset();
-            } catch (error) {
-                console.error("Error adding document: ", error);
-                msg.innerText = "Error: " + error.message;
-            }
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const studentTableBody = document.getElementById('studentTableBody');
+
+    // 1. ADD STUDENT
+    const studentForm = document.getElementById('studentForm');
+    studentForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+            await addDoc(collection(db, "students"), {
+                name: document.getElementById('studentName').value,
+                parentName: document.getElementById('parentName').value,
+                phone: document.getElementById('parentPhone').value,
+                pickup: document.getElementById('pickupLocation').value,
+                school: "Iqra International School Tokyo",
+                createdAt: new Date()
+            });
+            studentForm.reset();
+        } catch (error) { alert("Error: " + error.message); }
+    });
+
+    // 2. REAL-TIME VIEW (LISTEN FOR CHANGES)
+    onSnapshot(collection(db, "students"), (snapshot) => {
+        studentTableBody.innerHTML = ""; // Clear table
+        snapshot.forEach((docData) => {
+            const student = docData.data();
+            const id = docData.id;
+
+            const row = `
+                <tr>
+                    <td>${student.name}</td>
+                    <td>${student.parentName}</td>
+                    <td>${student.phone}</td>
+                    <td>${student.pickup}</td>
+                    <td><button class="delete-btn" onclick="removeStudent('${id}')">Delete</button></td>
+                </tr>
+            `;
+            studentTableBody.innerHTML += row;
         });
-    </script>
+    });
+
+    // 3. DELETE STUDENT (Making it global so the button can see it)
+    window.removeStudent = async (id) => {
+        if(confirm("Are you sure you want to remove this student?")) {
+            await deleteDoc(doc(db, "students", id));
+        }
+    }
+
+</script>
 </body>
 </html>
