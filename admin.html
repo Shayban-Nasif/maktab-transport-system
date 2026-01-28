@@ -5,41 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin - RS Transport Solution</title>
     <style>
-        :root { --primary: #1a73e8; --bg: #f0f2f5; --card: #ffffff; }
+        :root { --primary: #1a73e8; --bg: #f0f2f5; --card: #ffffff; --accent: #ff9800; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; display: flex; }
         
-        /* Sidebar Navigation */
         .sidebar { width: 250px; background: var(--primary); color: white; height: 100vh; padding: 20px; position: fixed; box-sizing: border-box; }
         .sidebar h2 { font-size: 1.2rem; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 10px; }
-        .nav-item { padding: 10px 0; cursor: pointer; opacity: 0.8; }
-        .nav-item:hover { opacity: 1; text-decoration: underline; }
+        .nav-item { padding: 12px 0; cursor: pointer; opacity: 0.8; display: block; color: white; text-decoration: none; }
+        .nav-item:hover { opacity: 1; background: rgba(255,255,255,0.1); border-radius: 4px; padding-left: 5px; }
 
-        /* Main Content Area */
         .main { margin-left: 250px; padding: 30px; width: 100%; box-sizing: border-box; }
         .card { background: var(--card); padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 25px; }
         
         h3 { margin-top: 0; color: #333; font-size: 1.1rem; border-left: 4px solid var(--primary); padding-left: 10px; }
         
-        /* Grid Form */
         form { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px; }
         .full { grid-column: span 2; }
         input, select, textarea { padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; width: 100%; box-sizing: border-box; }
         
         button { padding: 12px; background: var(--primary); color: white; border: none; cursor: pointer; border-radius: 6px; font-weight: bold; transition: 0.2s; }
         button:hover { background: #1557b0; }
-        .btn-notice { background: #ff9800; margin-top: 10px; width: auto; padding: 10px 30px; }
+        .btn-notice { background: var(--accent); margin-top: 10px; width: auto; padding: 10px 30px; }
 
-        /* Status Table */
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
         th, td { text-align: left; padding: 12px; border-bottom: 1px solid #eee; font-size: 14px; }
         th { background: #f8f9fa; color: #666; font-weight: 600; }
         .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; background: #e8f0fe; color: var(--primary); }
+        .assign-select { border: 1px solid var(--primary); color: var(--primary); font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
 
 <div class="sidebar">
     <h2>RS Transport Admin</h2>
+    <a href="index.html" class="nav-item">🏠 Home Page</a>
     <div class="nav-item">📊 Dashboard</div>
     <div class="nav-item">🚐 Live Routes</div>
     <div class="nav-item">👤 Staff Management</div>
@@ -54,17 +52,15 @@
                 <option value="parent">Register as Parent</option>
                 <option value="driver">Register as Driver</option>
             </select>
-            
             <input type="email" id="email" placeholder="Email Address" required>
-            <input type="password" id="password" placeholder="Password (Min 6 characters)" required>
+            <input type="password" id="password" placeholder="Password (Min 6 chars)" required>
             
             <div id="parentOnlyFields" class="full" style="display: contents;">
                 <input type="text" id="father" placeholder="Father's Name">
                 <input type="text" id="mother" placeholder="Mother's Name">
-                <input type="text" id="phone" placeholder="Primary Phone Number">
+                <input type="text" id="phone" placeholder="Primary Phone">
                 <select id="primaryContact"><option>Father</option><option>Mother</option></select>
-                
-                <h4 class="full" style="margin: 10px 0 0 0;">Student Details (For Parents)</h4>
+                <h4 class="full">Student Details</h4>
                 <input type="text" id="sName" placeholder="Student Name">
                 <input type="date" id="dob">
                 <select id="gender"><option value="M">Male</option><option value="F">Female</option></select>
@@ -75,9 +71,18 @@
                 <input type="text" id="dName" placeholder="Driver Full Name">
                 <input type="text" id="carInfo" placeholder="Car Plate / Model Info">
             </div>
-            
             <button type="submit" class="full">Register Account</button>
         </form>
+    </div>
+
+    <div class="card">
+        <h3>Assign Students to Drivers</h3>
+        <table>
+            <thead>
+                <tr><th>Student</th><th>Current Status</th><th>Assign Driver</th></tr>
+            </thead>
+            <tbody id="assignmentList"></tbody>
+        </table>
     </div>
 
     <div class="card">
@@ -98,7 +103,7 @@
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-    import { getFirestore, collection, addDoc, query, where, getDocs, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, query, where, getDocs, onSnapshot, serverTimestamp, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = { 
         apiKey: "AIzaSyCS163x5b5-MJXxJGwbjE0IlO7R58CkJMg",
@@ -113,22 +118,18 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    // Toggle Fields based on Role
     window.toggleFormFields = () => {
         const role = document.getElementById('role').value;
         document.getElementById('parentOnlyFields').style.display = role === 'parent' ? 'contents' : 'none';
         document.getElementById('driverOnlyFields').style.display = role === 'driver' ? 'contents' : 'none';
     };
 
-    // Notice Broadcasting
     window.sendNotice = async () => {
         const text = document.getElementById('noticeTxt').value;
         if(!text) return;
-        try {
-            await addDoc(collection(db, "notices"), { msg: text, time: serverTimestamp() });
-            alert("Broadcast Successful!");
-            document.getElementById('noticeTxt').value = "";
-        } catch (e) { alert(e.message); }
+        await addDoc(collection(db, "notices"), { msg: text, time: serverTimestamp() });
+        alert("Broadcast Successful!");
+        document.getElementById('noticeTxt').value = "";
     };
 
     // Registration Logic
@@ -146,53 +147,86 @@
             if (snap.empty) {
                 const userCred = await createUserWithEmailAndPassword(auth, email, password);
                 uid = userCred.user.uid;
-                
                 const userObj = { uid, email, role };
                 if(role === 'parent') {
-                    userObj.father = document.getElementById('father').value;
-                    userObj.mother = document.getElementById('mother').value;
                     userObj.phone = document.getElementById('phone').value;
                 } else {
                     userObj.driverName = document.getElementById('dName').value;
-                    userObj.carInfo = document.getElementById('carInfo').value;
                 }
                 await addDoc(collection(db, "users"), userObj);
-            } else {
-                uid = snap.docs[0].data().uid;
-            }
+            } else { uid = snap.docs[0].data().uid; }
 
             if (role === 'parent') {
                 await addDoc(collection(db, "students"), {
                     parentUid: uid,
                     name: document.getElementById('sName').value,
-                    dob: document.getElementById('dob').value,
-                    gender: document.getElementById('gender').value,
                     address: document.getElementById('address').value,
-                    status: "Awaiting Pickup"
+                    status: "Awaiting Pickup",
+                    driverUid: "" // Initially unassigned
                 });
                 alert("Student/Parent Registered!");
-            } else {
-                alert("Driver Profile Created!");
-            }
+            } else { alert("Driver Profile Created!"); }
             document.getElementById('regForm').reset();
             toggleFormFields();
         } catch (err) { alert(err.message); }
     });
 
-    // Real-time Student Monitoring
-    onSnapshot(collection(db, "students"), (snap) => {
-        const list = document.getElementById('studentList');
-        list.innerHTML = "";
-        snap.forEach(d => {
-            const s = d.data();
-            list.innerHTML += `<tr>
-                <td><strong>${s.name}</strong></td>
-                <td><span class="status-badge">${s.status}</span></td>
-                <td>${s.address}</td>
-                <td><button style="padding: 5px 10px; font-size: 12px;">Edit</button></td>
-            </tr>`;
+    // 🔄 Assignment Table Logic
+    async function loadAssignmentUI() {
+        // Get all drivers once
+        const dQuery = query(collection(db, "users"), where("role", "==", "driver"));
+        const dSnap = await getDocs(dQuery);
+        const drivers = [];
+        dSnap.forEach(doc => drivers.push({ uid: doc.data().uid, name: doc.data().driverName || doc.data().email }));
+
+        // Listen to students for assignments
+        onSnapshot(collection(db, "students"), (snap) => {
+            const assignBody = document.getElementById('assignmentList');
+            const liveBody = document.getElementById('studentList');
+            assignBody.innerHTML = "";
+            liveBody.innerHTML = "";
+
+            snap.forEach(studentDoc => {
+                const s = studentDoc.data();
+                const sId = studentDoc.id;
+
+                // Build Driver Dropdown
+                let options = `<option value="">-- Select Driver --</option>`;
+                drivers.forEach(dr => {
+                    options += `<option value="${dr.uid}" ${s.driverUid === dr.uid ? 'selected' : ''}>${dr.name}</option>`;
+                });
+
+                // Row for Assignment Table
+                assignBody.innerHTML += `
+                    <tr>
+                        <td><strong>${s.name}</strong></td>
+                        <td>${s.driverUid ? '✅ Assigned' : '⚠️ No Driver'}</td>
+                        <td>
+                            <select class="assign-select" onchange="updateDriver('${sId}', this.value)">
+                                ${options}
+                            </select>
+                        </td>
+                    </tr>`;
+
+                // Row for Live Feed Table
+                liveBody.innerHTML += `<tr>
+                    <td><strong>${s.name}</strong></td>
+                    <td><span class="status-badge">${s.status}</span></td>
+                    <td>${s.address}</td>
+                    <td><button style="padding: 5px 10px; font-size: 12px;">Edit</button></td>
+                </tr>`;
+            });
         });
-    });
+    }
+
+    window.updateDriver = async (studentId, driverUid) => {
+        try {
+            await updateDoc(doc(db, "students", studentId), { driverUid: driverUid });
+            alert("Driver updated successfully!");
+        } catch (e) { alert(e.message); }
+    };
+
+    loadAssignmentUI();
 </script>
 </body>
 </html>
