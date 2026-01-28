@@ -11,42 +11,37 @@
             --parent-color: #ff9800;
         }
         body { font-family: 'Segoe UI', sans-serif; text-align: center; padding: 50px 20px; background-color: #f4f7f6; color: #333; margin: 0; }
+        
         .branding { margin-bottom: 50px; }
         .branding h1 { font-size: 2.5rem; color: #2c3e50; margin-bottom: 0; }
         .branding h3 { color: #1a73e8; margin-top: 5px; font-weight: 400; }
+        .branding p { color: #666; max-width: 600px; margin: 15px auto; }
         
         .menu-box { display: flex; justify-content: center; gap: 25px; flex-wrap: wrap; max-width: 1000px; margin: auto; }
         
         .card { 
-            background: white; padding: 35px 20px; width: 240px; 
+            background: white; padding: 35px 20px; width: 260px; 
             border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.05);
             text-decoration: none; color: #333; 
-            transition: all 0.3s ease;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
             display: flex; flex-direction: column; align-items: center;
+            border-top: 6px solid transparent;
         }
         
         .card:hover { transform: translateY(-10px); box-shadow: 0 15px 30px rgba(0,0,0,0.1); }
-        .card i { font-size: 3rem; margin-bottom: 15px; }
+        .card i { font-size: 3.5rem; margin-bottom: 15px; }
 
-        .admin-link { border-bottom: 6px solid var(--admin-color); }
-        .driver-link { border-bottom: 6px solid var(--driver-color); }
-        .parent-link { border-bottom: 6px solid var(--parent-color); }
+        .admin-link { border-top-color: var(--admin-color); }
+        .driver-link { border-top-color: var(--driver-color); }
+        .parent-link { border-top-color: var(--parent-color); }
 
-        .card h2 { margin: 10px 0; font-size: 1.5rem; }
-        .card p { color: #666; font-size: 0.9rem; line-height: 1.4; }
+        .card h2 { margin: 10px 0; font-size: 1.5rem; color: #2c3e50; }
+        .card p { color: #777; font-size: 0.95rem; line-height: 1.5; margin: 0; }
 
-        .login-btn {
-            margin-top: 50px;
-            display: inline-block;
-            padding: 12px 40px;
-            background: #2c3e50;
-            color: white;
-            text-decoration: none;
-            border-radius: 30px;
-            font-weight: bold;
-            transition: background 0.2s;
+        @media (max-width: 600px) {
+            .card { width: 100%; }
+            body { padding: 30px 15px; }
         }
-        .login-btn:hover { background: #1a73e8; }
     </style>
 </head>
 <body>
@@ -60,20 +55,26 @@
     <div class="menu-box">
         <a href="admin.html" class="card admin-link">
             <i>🛡️</i>
-            <h2>Admin</h2>
-            <p>Full system control, registrations, and live route monitoring.</p>
+            <h2>Admin Portal</h2>
+            <p>System management, user registrations, and live monitoring.</p>
         </a>
+
         <a href="driver.html" class="card driver-link">
             <i>🚐</i>
-            <h2>Driver</h2>
-            <p>Access assigned routes, update student status, and navigation.</p>
+            <h2>Driver Portal</h2>
+            <p>Assigned student lists, route updates, and navigation.</p>
         </a>
+
         <a href="parent.html" class="card parent-link">
             <i>🏠</i>
-            <h2>Parent</h2>
-            <p>Track your child's bus, receive alerts, and manage absences.</p>
+            <h2>Parent Portal</h2>
+            <p>Live bus tracking, school notices, and student status.</p>
         </a>
     </div>
+
+    <footer style="margin-top: 60px; color: #aaa; font-size: 0.8rem;">
+        &copy; 2026 RS Transport Solution | Iqra International School
+    </footer>
 
 </body>
 </html>
