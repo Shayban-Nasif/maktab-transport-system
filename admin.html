@@ -5,59 +5,90 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin - RS Transport Solution</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; margin: 0; display: flex; }
-        .sidebar { width: 250px; background: #1a73e8; color: white; height: 100vh; padding: 20px; position: fixed; }
-        .main { margin-left: 280px; padding: 20px; width: calc(100% - 300px); }
-        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        :root { --primary: #1a73e8; --bg: #f0f2f5; --card: #ffffff; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; display: flex; }
+        
+        /* Sidebar Navigation */
+        .sidebar { width: 250px; background: var(--primary); color: white; height: 100vh; padding: 20px; position: fixed; box-sizing: border-box; }
+        .sidebar h2 { font-size: 1.2rem; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 10px; }
+        .nav-item { padding: 10px 0; cursor: pointer; opacity: 0.8; }
+        .nav-item:hover { opacity: 1; text-decoration: underline; }
+
+        /* Main Content Area */
+        .main { margin-left: 250px; padding: 30px; width: 100%; box-sizing: border-box; }
+        .card { background: var(--card); padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 25px; }
+        
+        h3 { margin-top: 0; color: #333; font-size: 1.1rem; border-left: 4px solid var(--primary); padding-left: 10px; }
+        
+        /* Grid Form */
+        form { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px; }
         .full { grid-column: span 2; }
-        input, select, textarea { padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
-        button { padding: 10px; background: #1a73e8; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { text-align: left; padding: 12px; border-bottom: 1px solid #eee; }
+        input, select, textarea { padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; width: 100%; box-sizing: border-box; }
+        
+        button { padding: 12px; background: var(--primary); color: white; border: none; cursor: pointer; border-radius: 6px; font-weight: bold; transition: 0.2s; }
+        button:hover { background: #1557b0; }
+        .btn-notice { background: #ff9800; margin-top: 10px; width: auto; padding: 10px 30px; }
+
+        /* Status Table */
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { text-align: left; padding: 12px; border-bottom: 1px solid #eee; font-size: 14px; }
+        th { background: #f8f9fa; color: #666; font-weight: 600; }
+        .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; background: #e8f0fe; color: var(--primary); }
     </style>
 </head>
 <body>
 
 <div class="sidebar">
-    <h2>RS Admin</h2>
-    <p>Iqra International School Tokyo</p>
-    <hr>
-    <p>Dashboard</p>
-    <p>Live Routes</p>
-    <p>Staff Management</p>
+    <h2>RS Transport Admin</h2>
+    <div class="nav-item">📊 Dashboard</div>
+    <div class="nav-item">🚐 Live Routes</div>
+    <div class="nav-item">👤 Staff Management</div>
+    <div class="nav-item">📑 Reports</div>
 </div>
 
 <div class="main">
     <div class="card">
-        <h3>Register Parent & Students (Sibling Support)</h3>
+        <h3>Register User (Parent or Driver)</h3>
         <form id="regForm">
-            <input type="email" id="email" placeholder="Parent Email (Login ID)" required>
-            <input type="password" id="password" placeholder="Password (New Users Only)">
-            <input type="text" id="father" placeholder="Father's Name">
-            <input type="text" id="mother" placeholder="Mother's Name">
-            <input type="text" id="phone" placeholder="Primary Phone">
-            <select id="primaryContact"><option>Father</option><option>Mother</option></select>
+            <select id="role" class="full" onchange="toggleFormFields()">
+                <option value="parent">Register as Parent</option>
+                <option value="driver">Register as Driver</option>
+            </select>
             
-            <h4 class="full">Student Details</h4>
-            <input type="text" id="sName" placeholder="Student Name">
-            <input type="date" id="dob">
-            <select id="gender"><option value="M">Male</option><option value="F">Female</option></select>
-            <input type="text" id="address" placeholder="Pickup Address" class="full">
+            <input type="email" id="email" placeholder="Email Address" required>
+            <input type="password" id="password" placeholder="Password (Min 6 characters)" required>
             
-            <button type="submit" class="full">Register / Add Sibling</button>
+            <div id="parentOnlyFields" class="full" style="display: contents;">
+                <input type="text" id="father" placeholder="Father's Name">
+                <input type="text" id="mother" placeholder="Mother's Name">
+                <input type="text" id="phone" placeholder="Primary Phone Number">
+                <select id="primaryContact"><option>Father</option><option>Mother</option></select>
+                
+                <h4 class="full" style="margin: 10px 0 0 0;">Student Details (For Parents)</h4>
+                <input type="text" id="sName" placeholder="Student Name">
+                <input type="date" id="dob">
+                <select id="gender"><option value="M">Male</option><option value="F">Female</option></select>
+                <input type="text" id="address" placeholder="Pickup Address">
+            </div>
+
+            <div id="driverOnlyFields" class="full" style="display: none;">
+                <input type="text" id="dName" placeholder="Driver Full Name">
+                <input type="text" id="carInfo" placeholder="Car Plate / Model Info">
+            </div>
+            
+            <button type="submit" class="full">Register Account</button>
         </form>
     </div>
 
     <div class="card">
-        <h3>Broadcast Notice to All Parents</h3>
-        <textarea id="noticeTxt" class="full" style="width:100%" placeholder="Type announcement here..."></textarea>
-        <button onclick="sendNotice()" style="margin-top:10px; background: #ff9800;">Send Notice</button>
+        <h3>Broadcast Notice</h3>
+        <textarea id="noticeTxt" placeholder="Type notice for all parents..."></textarea>
+        <button onclick="sendNotice()" class="btn-notice">Broadcast to Parents</button>
     </div>
 
     <div class="card">
         <h3>Live Student Status</h3>
-        <table id="liveTable">
+        <table>
             <thead><tr><th>Student</th><th>Status</th><th>Location</th><th>Action</th></tr></thead>
             <tbody id="studentList"></tbody>
         </table>
@@ -69,23 +100,41 @@
     import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
     import { getFirestore, collection, addDoc, query, where, getDocs, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    const firebaseConfig = { /* YOUR CONFIG */ };
+    const firebaseConfig = { 
+        apiKey: "AIzaSyCS163x5b5-MJXxJGwbjE0IlO7R58CkJMg",
+        authDomain: "maktab-transport.firebaseapp.com",
+        projectId: "maktab-transport",
+        storageBucket: "maktab-transport.firebasestorage.app",
+        messagingSenderId: "575357634901",
+        appId: "1:575357634901:web:4918fb77b0c21965af07dc"
+    };
+
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    // Notice Function
+    // Toggle Fields based on Role
+    window.toggleFormFields = () => {
+        const role = document.getElementById('role').value;
+        document.getElementById('parentOnlyFields').style.display = role === 'parent' ? 'contents' : 'none';
+        document.getElementById('driverOnlyFields').style.display = role === 'driver' ? 'contents' : 'none';
+    };
+
+    // Notice Broadcasting
     window.sendNotice = async () => {
         const text = document.getElementById('noticeTxt').value;
         if(!text) return;
-        await addDoc(collection(db, "notices"), { msg: text, time: serverTimestamp() });
-        alert("Notice Sent!");
-        document.getElementById('noticeTxt').value = "";
+        try {
+            await addDoc(collection(db, "notices"), { msg: text, time: serverTimestamp() });
+            alert("Broadcast Successful!");
+            document.getElementById('noticeTxt').value = "";
+        } catch (e) { alert(e.message); }
     };
 
     // Registration Logic
     document.getElementById('regForm').addEventListener('submit', async (e) => {
         e.preventDefault();
+        const role = document.getElementById('role').value;
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
 
@@ -97,35 +146,51 @@
             if (snap.empty) {
                 const userCred = await createUserWithEmailAndPassword(auth, email, password);
                 uid = userCred.user.uid;
-                await addDoc(collection(db, "users"), {
-                    uid, email, role: "parent",
-                    father: document.getElementById('father').value,
-                    mother: document.getElementById('mother').value,
-                    phone: document.getElementById('phone').value
-                });
+                
+                const userObj = { uid, email, role };
+                if(role === 'parent') {
+                    userObj.father = document.getElementById('father').value;
+                    userObj.mother = document.getElementById('mother').value;
+                    userObj.phone = document.getElementById('phone').value;
+                } else {
+                    userObj.driverName = document.getElementById('dName').value;
+                    userObj.carInfo = document.getElementById('carInfo').value;
+                }
+                await addDoc(collection(db, "users"), userObj);
             } else {
                 uid = snap.docs[0].data().uid;
             }
 
-            await addDoc(collection(db, "students"), {
-                parentUid: uid,
-                name: document.getElementById('sName').value,
-                dob: document.getElementById('dob').value,
-                gender: document.getElementById('gender').value,
-                address: document.getElementById('address').value,
-                status: "Awaiting"
-            });
-            alert("Registered successfully!");
+            if (role === 'parent') {
+                await addDoc(collection(db, "students"), {
+                    parentUid: uid,
+                    name: document.getElementById('sName').value,
+                    dob: document.getElementById('dob').value,
+                    gender: document.getElementById('gender').value,
+                    address: document.getElementById('address').value,
+                    status: "Awaiting Pickup"
+                });
+                alert("Student/Parent Registered!");
+            } else {
+                alert("Driver Profile Created!");
+            }
+            document.getElementById('regForm').reset();
+            toggleFormFields();
         } catch (err) { alert(err.message); }
     });
 
-    // Live View Listener
+    // Real-time Student Monitoring
     onSnapshot(collection(db, "students"), (snap) => {
         const list = document.getElementById('studentList');
         list.innerHTML = "";
         snap.forEach(d => {
             const s = d.data();
-            list.innerHTML += `<tr><td>${s.name}</td><td><b>${s.status}</b></td><td>${s.address}</td><td><button>Edit</button></td></tr>`;
+            list.innerHTML += `<tr>
+                <td><strong>${s.name}</strong></td>
+                <td><span class="status-badge">${s.status}</span></td>
+                <td>${s.address}</td>
+                <td><button style="padding: 5px 10px; font-size: 12px;">Edit</button></td>
+            </tr>`;
         });
     });
 </script>
