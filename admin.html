@@ -6,17 +6,22 @@
     <title>Admin - RS Transport Solution</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background-color: #f4f7f6; }
-        .container { max-width: 900px; margin: auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .container { max-width: 1000px; margin: auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         .branding { text-align: center; color: #1a73e8; margin-bottom: 30px; border-bottom: 2px solid #eee; padding-bottom: 10px; }
-        h2 { color: #333; }
-        form { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 30px; }
-        input { padding: 12px; border: 1px solid #ddd; border-radius: 5px; }
-        button.add-btn { grid-column: span 2; background-color: #28a745; color: white; border: none; padding: 12px; cursor: pointer; font-weight: bold; }
+        h2 { color: #333; margin-top: 0; }
         
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        /* Two-column grid for the form */
+        form { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 30px; }
+        input { padding: 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px; }
+        .full-width { grid-column: span 2; }
+        
+        button.add-btn { grid-column: span 2; background-color: #28a745; color: white; border: none; padding: 15px; cursor: pointer; font-weight: bold; border-radius: 5px; font-size: 16px; }
+        button.add-btn:hover { background-color: #218838; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
         th, td { text-align: left; padding: 12px; border-bottom: 1px solid #ddd; }
-        th { background-color: #f8f9fa; }
-        .delete-btn { background-color: #dc3545; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px; }
+        th { background-color: #f8f9fa; color: #555; }
+        .delete-btn { background-color: #dc3545; color: white; border: none; padding: 6px 12px; cursor: pointer; border-radius: 4px; }
     </style>
 </head>
 <body>
@@ -27,13 +32,18 @@
         <p>Official Portal | Iqra International School Tokyo</p>
     </div>
 
-    <h2>Register New Student</h2>
+    <h2>Register New Student & Parent Account</h2>
     <form id="studentForm">
         <input type="text" id="studentName" placeholder="Student Name" required>
+        <input type="text" id="pickupLocation" placeholder="Pickup Address" required>
+        
         <input type="text" id="parentName" placeholder="Parent's Name" required>
         <input type="tel" id="parentPhone" placeholder="Parent Phone Number" required>
-        <input type="text" id="pickupLocation" placeholder="Pickup Address" required>
-        <button type="submit" class="add-btn">Add Student to Database</button>
+        
+        <input type="email" id="parentEmail" placeholder="Parent Email (Login ID)" required>
+        <input type="password" id="parentPassword" placeholder="Set Password (min 6 chars)" required>
+        
+        <button type="submit" class="add-btn">Create Account & Register Student</button>
     </form>
 
     <hr>
@@ -42,21 +52,21 @@
     <table>
         <thead>
             <tr>
-                <th>Name</th>
+                <th>Student</th>
                 <th>Parent</th>
-                <th>Phone</th>
-                <th>Pickup</th>
+                <th>Email</th>
+                <th>Pickup Address</th>
                 <th>Action</th>
             </tr>
         </thead>
-        <tbody id="studentTableBody">
-            </tbody>
+        <tbody id="studentTableBody"></tbody>
     </table>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyCS163x5b5-MJXxJGwbjE0IlO7R58CkJMg",
@@ -69,37 +79,53 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+    const auth = getAuth(app);
     const studentTableBody = document.getElementById('studentTableBody');
 
-    // 1. ADD STUDENT
+    // 1. REGISTER STUDENT + CREATE AUTH USER
     const studentForm = document.getElementById('studentForm');
     studentForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        
+        const email = document.getElementById('parentEmail').value;
+        const password = document.getElementById('parentPassword').value;
+
         try {
+            // A. Create the Login User in Firebase Auth
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            const user = userCredential.user;
+
+            // B. Save details in Firestore linked by the UID
             await addDoc(collection(db, "students"), {
+                uid: user.uid,
                 name: document.getElementById('studentName').value,
                 parentName: document.getElementById('parentName').value,
+                parentEmail: email,
                 phone: document.getElementById('parentPhone').value,
                 pickup: document.getElementById('pickupLocation').value,
                 school: "Iqra International School Tokyo",
+                role: "parent",
                 createdAt: new Date()
             });
+
+            alert("Account created successfully!");
             studentForm.reset();
-        } catch (error) { alert("Error: " + error.message); }
+        } catch (error) {
+            alert("Error: " + error.message);
+        }
     });
 
-    // 2. REAL-TIME VIEW (LISTEN FOR CHANGES)
+    // 2. REAL-TIME LIST
     onSnapshot(collection(db, "students"), (snapshot) => {
-        studentTableBody.innerHTML = ""; // Clear table
+        studentTableBody.innerHTML = "";
         snapshot.forEach((docData) => {
             const student = docData.data();
             const id = docData.id;
-
             const row = `
                 <tr>
-                    <td>${student.name}</td>
+                    <td><strong>${student.name}</strong></td>
                     <td>${student.parentName}</td>
-                    <td>${student.phone}</td>
+                    <td>${student.parentEmail}</td>
                     <td>${student.pickup}</td>
                     <td><button class="delete-btn" onclick="removeStudent('${id}')">Delete</button></td>
                 </tr>
@@ -108,13 +134,12 @@
         });
     });
 
-    // 3. DELETE STUDENT (Making it global so the button can see it)
+    // 3. DELETE FUNCTION
     window.removeStudent = async (id) => {
-        if(confirm("Are you sure you want to remove this student?")) {
+        if(confirm("Delete this student? Note: This only removes the record, not the login account.")) {
             await deleteDoc(doc(db, "students", id));
         }
     }
-
 </script>
 </body>
 </html>
