@@ -10,10 +10,12 @@
         .branding h1 { color: #1a73e8; margin-bottom: 5px; }
         .branding p { color: #555; margin-bottom: 30px; }
         form { display: flex; flex-direction: column; gap: 15px; }
-        input { padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; }
-        button { background-color: #1a73e8; color: white; border: none; padding: 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 16px; }
+        input { padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; outline-color: #1a73e8; }
+        button { background-color: #1a73e8; color: white; border: none; padding: 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 16px; transition: 0.2s; }
         button:hover { background-color: #1557b0; }
-        #errorMessage { color: #d32f2f; font-size: 0.9em; margin-top: 10px; }
+        #errorMessage { color: #d32f2f; font-size: 0.9em; margin-top: 15px; min-height: 1.2em; }
+        .back-home { display: block; margin-top: 20px; color: #666; text-decoration: none; font-size: 0.9em; }
+        .back-home:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -27,10 +29,11 @@
     <form id="loginForm">
         <input type="email" id="email" placeholder="Email Address" required>
         <input type="password" id="password" placeholder="Password" required>
-        <button type="submit">Sign In</button>
+        <button type="submit" id="loginBtn">Sign In</button>
     </form>
     
     <div id="errorMessage"></div>
+    <a href="index.html" class="back-home">← Back to Homepage</a>
 </div>
 
 <script type="module">
@@ -56,6 +59,12 @@
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
         const errorDiv = document.getElementById('errorMessage');
+        const loginBtn = document.getElementById('loginBtn');
+
+        // Disable button and show loading state
+        loginBtn.disabled = true;
+        loginBtn.innerText = "Signing in...";
+        errorDiv.innerText = "";
 
         try {
             // 1. Sign in with Firebase Auth
@@ -70,20 +79,31 @@
                 const userData = querySnapshot.docs[0].data();
                 const role = userData.role;
 
-                // 3. Redirect based on role
-                if (role === 'driver') {
+                // 3. Redirect based on role (Added Admin check)
+                if (role === 'admin') {
+                    window.location.href = "admin.html";
+                } else if (role === 'driver') {
                     window.location.href = "driver.html";
                 } else if (role === 'parent') {
                     window.location.href = "parent.html";
                 } else {
-                    errorDiv.innerText = "Role not recognized. Contact Admin.";
+                    errorDiv.innerText = "Access Denied: Unrecognized role.";
                 }
             } else {
-                errorDiv.innerText = "User profile not found in database.";
+                errorDiv.innerText = "User profile not found. Please contact Admin.";
             }
 
         } catch (error) {
-            errorDiv.innerText = "Login failed: " + error.message;
+            console.error("Login Error:", error);
+            // Translate common Firebase errors for users
+            if (error.code === 'auth/invalid-credential') {
+                errorDiv.innerText = "Incorrect email or password.";
+            } else {
+                errorDiv.innerText = "Login failed. Please try again.";
+            }
+        } finally {
+            loginBtn.disabled = false;
+            loginBtn.innerText = "Sign In";
         }
     });
 </script>
