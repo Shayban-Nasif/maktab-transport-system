@@ -1,47 +1,66 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Driver - RS Transport</title>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Driver Route - RS Transport</title>
     <style>
-        body { font-family: sans-serif; background: #e8f5e9; padding: 15px; }
-        .route-card { background: white; padding: 15px; border-radius: 10px; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
-        button { padding: 12px; border: none; border-radius: 6px; color: white; font-weight: bold; }
+        body { font-family: sans-serif; background: #1a1a1a; color: white; padding: 15px; }
+        .nav { display: flex; justify-content: space-between; align-items: center; }
+        .student-card { background: #2d2d2d; padding: 20px; border-radius: 12px; margin-bottom: 15px; border-left: 5px solid #28a745; }
+        .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
+        button { padding: 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; color: white; }
+        .btn-home { background: transparent; color: #aaa; text-decoration: none; font-size: 0.9em; }
     </style>
 </head>
 <body>
-    <h2>Assigned Route</h2>
-    <div id="routeList"></div>
+    <div class="nav">
+        <h2>My Daily Route</h2>
+        <a href="index.html" class="btn-home">Home</a>
+    </div>
+
+    <div id="routeList">
+        <p>Checking assigned students...</p>
+    </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getFirestore, collection, query, where, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = { /* YOUR CONFIG */ };
     const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
     const db = getFirestore(app);
 
-    onSnapshot(collection(db, "students"), (snap) => {
-        const list = document.getElementById('routeList');
-        list.innerHTML = "";
-        snap.forEach(d => {
-            const s = d.data();
-            list.innerHTML += `
-                <div class="route-card">
-                    <strong>${s.name}</strong><br><small>${s.address}</small>
-                    <div class="actions">
-                        <button style="background:#ff9800" onclick="upd('${d.id}', 'Waiting...')">Waiting</button>
-                        <button style="background:#2e7d32" onclick="upd('${d.id}', 'Picked Up')">Picked Up</button>
-                        <button style="background:#1a73e8" onclick="upd('${d.id}', 'Dropped')">Dropped</button>
-                        <button style="background:#555" onclick="upd('${d.id}', 'Finished')">Finished</button>
-                    </div>
-                </div>`;
+    onAuthStateChanged(auth, (user) => {
+        if (!user) { window.location.href = "login.html"; return; }
+
+        // FILTER: Only show students where driverUid matches this logged-in driver
+        const q = query(collection(db, "students"), where("driverUid", "==", user.uid));
+        
+        onSnapshot(q, (snap) => {
+            const list = document.getElementById('routeList');
+            list.innerHTML = snap.empty ? "<p>No students assigned to you yet.</p>" : "";
+            
+            snap.forEach(d => {
+                const s = d.data();
+                list.innerHTML += `
+                    <div class="student-card">
+                        <h3>${s.name}</h3>
+                        <p>📍 ${s.address}</p>
+                        <p>Status: <span style="color:#28a745">${s.status}</span></p>
+                        <div class="actions">
+                            <button style="background:#ff9800" onclick="update('${d.id}', 'Bus is Near')">Near</button>
+                            <button style="background:#28a745" onclick="update('${d.id}', 'On Board')">Picked Up</button>
+                            <button style="background:#007bff" onclick="update('${d.id}', 'Dropped Off')">Dropped</button>
+                            <button style="background:#dc3545" onclick="update('${d.id}', 'Absent')">Absent</button>
+                        </div>
+                    </div>`;
+            });
         });
     });
 
-    window.upd = async (id, status) => {
+    window.update = async (id, status) => {
         await updateDoc(doc(db, "students", id), { status: status });
     };
 </script>
