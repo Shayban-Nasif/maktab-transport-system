@@ -14,18 +14,16 @@
         /* Forms & Inputs */
         input, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 0.9rem; }
         button { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; }
-        button:hover { opacity: 0.9; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
         
-        /* Dashboard */
-        .nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .logout-btn { background: var(--dark); width: auto; padding: 8px 15px; font-size: 0.8rem; }
-        .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; color: white; }
-
         /* Tables */
         table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; }
         th, td { text-align: left; padding: 12px; border-bottom: 1px solid #eee; font-size: 0.85rem; }
-        th { background: #f8f9fa; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+        th { background: #f8f9fa; color: #666; text-transform: uppercase; }
         
+        .nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .logout-btn { background: var(--dark); width: auto; padding: 8px 15px; font-size: 0.8rem; }
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; color: white; }
         .btn-del { background: var(--danger); padding: 5px 10px; font-size: 0.7rem; width: auto; }
         .btn-edit { background: var(--primary); padding: 5px 10px; font-size: 0.7rem; width: auto; margin-right: 5px; }
         .btn-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 5px; margin-top: 10px; }
@@ -60,7 +58,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
     import { getFirestore, collection, query, where, getDocs, onSnapshot, doc, updateDoc, addDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -72,10 +70,16 @@
         appId: "1:575357634901:web:4918fb77b0c21965af07dc"
     };
 
+    // Initialize Main App
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
 
+    // Initialize Secondary App for User Creation (Prevents Admin Auto-Logout)
+    const secondaryApp = initializeApp(firebaseConfig, "Secondary");
+    const secondaryAuth = getAuth(secondaryApp);
+
+    // --- AUTH STATE ---
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             const q = query(collection(db, "users"), where("uid", "==", user.uid));
@@ -87,6 +91,7 @@
         }
     });
 
+    // --- LOGIN ---
     document.getElementById('loginForm').onsubmit = async (e) => {
         e.preventDefault();
         const btn = document.getElementById('loginBtn');
@@ -94,20 +99,40 @@
         try {
             await signInWithEmailAndPassword(auth, email.value, password.value);
         } catch (err) {
-            document.getElementById('errorMsg').innerText = "Invalid Login";
+            document.getElementById('errorMsg').innerText = "Invalid Login Details";
             btn.disabled = false;
         }
     };
 
     document.getElementById('logoutBtn').onclick = () => signOut(auth);
 
+    // --- HELPER: SYSTEM USER CREATION ---
+    async function createSystemUser(userEmail, userPass, role, profileData) {
+        // Creates user in Auth via secondary instance + Saves to Firestore
+        const userCredential = await createUserWithEmailAndPassword(secondaryAuth, userEmail, userPass);
+        const newUser = userCredential.user;
+        
+        await addDoc(collection(db, "users"), {
+            uid: newUser.uid,
+            email: userEmail,
+            role: role,
+            ...profileData
+        });
+        
+        await signOut(secondaryAuth); // Clear secondary session
+        return newUser.uid;
+    }
+
+    // --- ROUTER ---
     function initDashboard(user) {
         document.getElementById('loginSection').classList.add('hidden');
         document.getElementById('dashboardSection').classList.remove('hidden');
         document.getElementById('welcomeText').innerText = "Hello, " + (user.fullName || "User");
+        
         const badge = document.getElementById('roleBadge');
         badge.innerText = user.role.toUpperCase();
         badge.style.backgroundColor = `var(--${user.role})`;
+
         const container = document.getElementById('dynamicContent');
         if (user.role === 'admin') renderAdmin(container);
         else if (user.role === 'driver') renderDriver(container, user.uid);
@@ -118,14 +143,14 @@
     function renderAdmin(target) {
         target.innerHTML = `
             <div class="card">
-                <h3>1. Driver & Car Registration</h3>
+                <h3>1. Register Driver & Car</h3>
                 <form id="regDriverForm" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                    <input type="text" id="dName" placeholder="Driver Name" required>
-                    <input type="email" id="dEmail" placeholder="Email" required>
-                    <input type="text" id="dPhone" placeholder="Contact" required>
-                    <input type="text" id="dUid" placeholder="Firebase UID" required>
-                    <input type="text" id="dCar" placeholder="Car Info (Model/Plate)" required>
-                    <button type="submit" style="grid-column: span 2; background:var(--driver)">Register Driver</button>
+                    <input type="text" id="dName" placeholder="Driver Full Name" required>
+                    <input type="email" id="dEmail" placeholder="Driver Email" required>
+                    <input type="text" id="dPhone" placeholder="Contact Number" required>
+                    <input type="text" id="dCar" placeholder="Car Model/Plate" required>
+                    <input type="password" id="dPass" placeholder="Set Password" required>
+                    <button type="submit" id="dBtn" style="grid-column: span 2; background:var(--driver)">Register & Create Driver Account</button>
                 </form>
             </div>
 
@@ -138,18 +163,18 @@
                     <input type="text" id="sFather" placeholder="Father's Name">
                     <input type="text" id="sMother" placeholder="Mother's Name">
                     <input type="text" id="sContact" placeholder="Primary Contact" required>
-                    <input type="email" id="sPEmail" placeholder="Parent Email" required>
-                    <input type="text" id="sPUid" placeholder="Parent Firebase UID" required>
+                    <input type="email" id="sPEmail" placeholder="Parent Email (Login)" required>
+                    <input type="password" id="sPPass" placeholder="Set Parent Password" required>
                     <input type="text" id="sAddr" placeholder="Pickup/Dropoff Location" style="grid-column: span 2;" required>
                     <select id="sDriverSelect" style="grid-column: span 2;"><option value="">Assign Driver...</option></select>
-                    <button type="submit" style="grid-column: span 2;">Complete Registration</button>
+                    <button type="submit" id="sBtn" style="grid-column: span 2;">Register Student & Parent Account</button>
                 </form>
             </div>
 
             <div class="card">
                 <h3>Driver Management</h3>
                 <table>
-                    <thead><tr><th>Driver</th><th>Contact</th><th>Car</th><th>Action</th></tr></thead>
+                    <thead><tr><th>Driver</th><th>Car</th><th>Action</th></tr></thead>
                     <tbody id="driverTableBody"></tbody>
                 </table>
             </div>
@@ -157,16 +182,16 @@
             <div class="card">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <h3>Live Student Database</h3>
-                    <input type="text" id="searchBar" placeholder="Search student..." style="width:200px; margin:0;">
+                    <input type="text" id="searchBar" placeholder="Search..." style="width:200px; margin:0;">
                 </div>
-                <table>
-                    <thead><tr><th>Student</th><th>Parent</th><th>Status</th><th>Action</th></tr></thead>
+                <table id="stTable">
+                    <thead><tr><th>Student</th><th>Parent Contact</th><th>Status</th><th>Action</th></tr></thead>
                     <tbody id="adminFeed"></tbody>
                 </table>
             </div>
         `;
 
-        // Load Drivers into Dropdown & Table
+        // Load Driver Dropdown & Table
         const dSelect = document.getElementById('sDriverSelect');
         const dTable = document.getElementById('driverTableBody');
         onSnapshot(query(collection(db, "users"), where("role", "==", "driver")), (snap) => {
@@ -175,33 +200,46 @@
             snap.forEach(docSnap => {
                 const d = docSnap.data();
                 dSelect.innerHTML += `<option value="${d.uid}">${d.fullName}</option>`;
-                dTable.innerHTML += `<tr>
-                    <td>${d.fullName}</td><td>${d.phone || d.email}</td><td>${d.assignedCar || 'None'}</td>
-                    <td><button class="btn-edit" onclick="window.editCar('${docSnap.id}', '${d.assignedCar}')">Edit Car</button></td>
-                </tr>`;
+                dTable.innerHTML += `<tr><td>${d.fullName}</td><td>${d.assignedCar}</td><td>
+                    <button class="btn-edit" onclick="window.editCar('${docSnap.id}', '${d.assignedCar}')">Edit Car</button>
+                    <button class="btn-del" onclick="window.delDoc('users', '${docSnap.id}')">Remove</button>
+                </td></tr>`;
             });
         });
 
-        // Register Driver Logic
+        // Driver Registration Logic
         document.getElementById('regDriverForm').onsubmit = async (e) => {
             e.preventDefault();
-            await addDoc(collection(db, "users"), { fullName: dName.value, email: dEmail.value, phone: dPhone.value, uid: dUid.value, assignedCar: dCar.value, role: "driver" });
-            alert("Driver Saved!"); e.target.reset();
+            const btn = document.getElementById('dBtn');
+            btn.disabled = true; btn.innerText = "Creating Account...";
+            try {
+                await createSystemUser(dEmail.value, dPass.value, "driver", {
+                    fullName: dName.value, phone: dPhone.value, assignedCar: dCar.value
+                });
+                alert("Driver Created Successfully!"); e.target.reset();
+            } catch (err) { alert(err.message); }
+            btn.disabled = false; btn.innerText = "Register & Create Driver Account";
         };
 
-        // Register Student Logic
+        // Student/Parent Registration Logic
         document.getElementById('regStudentForm').onsubmit = async (e) => {
             e.preventDefault();
-            await addDoc(collection(db, "students"), { 
-                name: sName.value, dob: sDob.value, gender: sGender.value, father: sFather.value, mother: sMother.value, contact: sContact.value, 
-                parentEmail: sPEmail.value, parentUid: sPUid.value, address: sAddr.value, driverUid: sDriverSelect.value, status: "Awaiting" 
-            });
-            // Auto-create parent user entry
-            await addDoc(collection(db, "users"), { fullName: sFather.value || "Parent", email: sPEmail.value, uid: sPUid.value, role: "parent" });
-            alert("Registration Success!"); e.target.reset();
+            const btn = document.getElementById('sBtn');
+            btn.disabled = true; btn.innerText = "Processing...";
+            try {
+                const pUid = await createSystemUser(sPEmail.value, sPPass.value, "parent", {
+                    fullName: sFather.value || "Parent", contact: sContact.value
+                });
+                await addDoc(collection(db, "students"), { 
+                    name: sName.value, dob: sDob.value, gender: sGender.value, father: sFather.value, mother: sMother.value, contact: sContact.value, 
+                    parentEmail: sPEmail.value, parentUid: pUid, address: sAddr.value, driverUid: sDriverSelect.value, status: "Awaiting Pickup"
+                });
+                alert("Student Registered & Parent Account Created!"); e.target.reset();
+            } catch (err) { alert(err.message); }
+            btn.disabled = false; btn.innerText = "Register Student & Parent Account";
         };
 
-        // Live Student List Logic
+        // Live Student Feed
         onSnapshot(collection(db, "students"), (snap) => {
             const body = document.getElementById('adminFeed');
             const term = document.getElementById('searchBar').value.toLowerCase();
@@ -210,14 +248,14 @@
                 const s = docSnap.data();
                 if (s.name.toLowerCase().includes(term)) {
                     body.innerHTML += `<tr>
-                        <td><strong>${s.name}</strong></td><td>${s.parentEmail}</td>
+                        <td><strong>${s.name}</strong><br><small>${s.gender} | ${s.dob}</small></td>
+                        <td>${s.contact}</td>
                         <td><span class="badge" style="background:#888">${s.status}</span></td>
                         <td><button class="btn-del" onclick="window.delDoc('students', '${docSnap.id}')">Delete</button></td>
                     </tr>`;
                 }
             });
         });
-        document.getElementById('searchBar').oninput = () => renderAdmin(target);
     }
 
     // --- DRIVER VIEW ---
@@ -225,13 +263,13 @@
         target.innerHTML = `<div class="card"><h3>My Route</h3><div id="dList"></div></div>`;
         onSnapshot(query(collection(db, "students"), where("driverUid", "==", uid)), (snap) => {
             const list = document.getElementById('dList');
-            list.innerHTML = snap.empty ? "No students assigned." : "";
+            list.innerHTML = snap.empty ? "No students assigned to you." : "";
             snap.forEach(d => {
                 const s = d.data();
                 list.innerHTML += `<div style="padding:15px; border-bottom:1px solid #eee;">
                     <strong>${s.name}</strong><br><small>${s.address}</small>
                     <div class="btn-grid">
-                        <button class="btn-s" style="background:var(--parent)" onclick="window.upSt('${d.id}','Near')">Near</button>
+                        <button class="btn-s" style="background:var(--parent)" onclick="window.upSt('${d.id}','Bus Near')">Near</button>
                         <button class="btn-s" style="background:var(--driver)" onclick="window.upSt('${d.id}','Picked Up')">Picked</button>
                         <button class="btn-s" style="background:var(--primary)" onclick="window.upSt('${d.id}','Dropped')">Dropped</button>
                         <button class="btn-s" style="background:var(--danger)" onclick="window.upSt('${d.id}','Absent')">Absent</button>
@@ -243,26 +281,26 @@
 
     // --- PARENT VIEW ---
     function renderParent(target, uid) {
-        target.innerHTML = `<div class="card"><h3>Child Status</h3><div id="pList"></div></div>`;
+        target.innerHTML = `<div class="card"><h3>Child Bus Status</h3><div id="pList"></div></div>`;
         onSnapshot(query(collection(db, "students"), where("parentUid", "==", uid)), (snap) => {
             const list = document.getElementById('pList');
             list.innerHTML = "";
             snap.forEach(d => {
                 const s = d.data();
                 list.innerHTML += `<div style="text-align:center; padding:20px;">
-                    <h2>${s.name}</h2>
-                    <div class="badge" style="background:var(--primary); font-size:1.2rem; padding:10px; margin:15px 0; display:inline-block;">${s.status}</div>
-                    <p>Driver: ${s.driverUid.substring(0,8)}...</p>
+                    <h2 style="margin:0">${s.name}</h2>
+                    <div class="badge" style="background:var(--primary); font-size:1.4rem; padding:15px; margin:20px 0; display:inline-block;">${s.status}</div>
+                    <p>Pickup: ${s.address}</p>
                 </div>`;
             });
         });
     }
 
-    // Global Functions
+    // --- GLOBAL HELPERS ---
     window.upSt = async (id, val) => await updateDoc(doc(db, "students", id), { status: val });
     window.delDoc = async (col, id) => { if(confirm("Permanently delete?")) await deleteDoc(doc(db, col, id)); };
     window.editCar = async (docId, current) => {
-        const newVal = prompt("Enter new Car Registration/Info:", current);
+        const newVal = prompt("Update Car Info:", current);
         if(newVal) await updateDoc(doc(db, "users", docId), { assignedCar: newVal });
     };
 
