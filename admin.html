@@ -6,21 +6,21 @@
     <title>Admin - RS Transport Solution</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; padding: 20px; background-color: #f4f7f6; }
-        .container { max-width: 1000px; margin: auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .container { max-width: 1100px; margin: auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         .branding { text-align: center; color: #1a73e8; margin-bottom: 30px; border-bottom: 2px solid #eee; padding-bottom: 10px; }
         
-        form { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 30px; padding: 20px; background: #f9f9f9; border-radius: 8px; }
-        input, select { padding: 12px; border: 1px solid #ddd; border-radius: 5px; }
-        .full-width { grid-column: span 2; }
+        form { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 30px; padding: 20px; background: #f9f9f9; border-radius: 8px; }
+        h3 { grid-column: span 3; color: #1a73e8; border-bottom: 1px solid #ddd; margin-top: 20px; }
+        input, select { padding: 12px; border: 1px solid #ddd; border-radius: 5px; width: 100%; box-sizing: border-box; }
+        .full-width { grid-column: span 3; }
         
-        button.add-btn { grid-column: span 2; background-color: #1a73e8; color: white; border: none; padding: 15px; cursor: pointer; font-weight: bold; border-radius: 5px; }
+        button.add-btn { grid-column: span 3; background-color: #1a73e8; color: white; border: none; padding: 15px; cursor: pointer; font-weight: bold; border-radius: 5px; font-size: 16px; margin-top: 10px;}
         
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { text-align: left; padding: 12px; border-bottom: 1px solid #ddd; }
-        .role-badge { padding: 4px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold; }
-        .role-parent { background: #e3f2fd; color: #1976d2; }
-        .role-driver { background: #e8f5e9; color: #2e7d32; }
-        .delete-btn { background-color: #dc3545; color: white; border: none; padding: 6px 12px; cursor: pointer; border-radius: 4px; }
+        th, td { text-align: left; padding: 12px; border-bottom: 1px solid #ddd; font-size: 14px; }
+        .gender-badge { padding: 2px 6px; border-radius: 4px; font-size: 0.8em; }
+        .M { background: #e3f2fd; color: #1976d2; }
+        .F { background: #fce4ec; color: #c2185b; }
     </style>
 </head>
 <body>
@@ -28,50 +28,60 @@
 <div class="container">
     <div class="branding">
         <h1>RS Transport Solution</h1>
-        <p>Iqra International School Tokyo | System Admin</p>
+        <p>Iqra International School Tokyo | Admin Management</p>
     </div>
 
-    <h2>Create New User Profile</h2>
     <form id="registrationForm">
-        <select id="userRole" class="full-width" onchange="toggleFields()" required>
-            <option value="parent">Register as Parent</option>
-            <option value="driver">Register as Driver</option>
+        <h3>1. Student Information</h3>
+        <input type="text" id="studentName" placeholder="Student Full Name" required>
+        <input type="date" id="dob" title="Date of Birth" required>
+        <select id="gender" required>
+            <option value="">Select Gender</option>
+            <option value="M">Male</option>
+            <option value="F">Female</option>
         </select>
+        <input type="text" id="address" placeholder="Pickup Address" class="full-width" required>
 
-        <input type="text" id="fullName" placeholder="Full Name" required>
-        <input type="tel" id="phoneNumber" placeholder="Phone Number" required>
+        <h3>2. Parent / Guardian Information</h3>
+        <input type="text" id="fatherName" placeholder="Father's Name">
+        <input type="tel" id="fatherPhone" placeholder="Father's Phone">
+        <select id="primaryContact">
+            <option value="Father">Father is Primary</option>
+            <option value="Mother">Mother is Primary</option>
+        </select>
         
-        <input type="text" id="studentName" placeholder="Student Name" class="parent-only">
-        <input type="text" id="address" placeholder="Pickup/Home Address" class="parent-only">
-        
-        <input type="text" id="carNumber" placeholder="Car Plate Number" class="driver-only" style="display:none;">
+        <input type="text" id="motherName" placeholder="Mother's Name">
+        <input type="tel" id="motherPhone" placeholder="Mother's Phone">
+        <div style="visibility: hidden;">placeholder</div>
 
-        <input type="email" id="userEmail" placeholder="Email (Login ID)" required>
-        <input type="password" id="userPassword" placeholder="Set Password (min 6 chars)" required>
+        <h3>3. Login Credentials (Use same email for siblings)</h3>
+        <input type="email" id="userEmail" placeholder="Parent Email (Login ID)" required>
+        <input type="password" id="userPassword" placeholder="Set Password (only for new users)">
         
-        <button type="submit" class="add-btn">Create Profile</button>
+        <button type="submit" class="add-btn">Register Student</button>
     </form>
 
     <hr>
 
-    <h2>System Users</h2>
+    <h2>Registered Students</h2>
     <table>
         <thead>
             <tr>
-                <th>Name</th>
-                <th>Role</th>
-                <th>Email</th>
-                <th>Details</th>
-                <th>Action</th>
+                <th>Student</th>
+                <th>Gender</th>
+                <th>DoB</th>
+                <th>Primary Parent</th>
+                <th>Phone</th>
+                <th>Pickup Address</th>
             </tr>
         </thead>
-        <tbody id="userTableBody"></tbody>
+        <tbody id="studentTableBody"></tbody>
     </table>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, onSnapshot, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
@@ -87,81 +97,71 @@
     const db = getFirestore(app);
     const auth = getAuth(app);
 
-    // UI Toggle for Driver/Parent fields
-    window.toggleFields = () => {
-        const role = document.getElementById('userRole').value;
-        const parentFields = document.querySelectorAll('.parent-only');
-        const driverFields = document.querySelectorAll('.driver-only');
-        
-        if(role === 'driver') {
-            parentFields.forEach(f => f.style.display = 'none');
-            driverFields.forEach(f => f.style.display = 'block');
-        } else {
-            parentFields.forEach(f => f.style.display = 'block');
-            driverFields.forEach(f => f.style.display = 'none');
-        }
-    };
-
-    // CREATE USER LOGIC
     document.getElementById('registrationForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const role = document.getElementById('userRole').value;
         const email = document.getElementById('userEmail').value;
         const password = document.getElementById('userPassword').value;
 
         try {
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-            const user = userCredential.user;
+            let uid = "";
+            
+            // Check if parent already exists
+            const q = query(collection(db, "users"), where("email", "==", email));
+            const querySnapshot = await getDocs(q);
 
-            const userData = {
-                uid: user.uid,
-                role: role,
-                name: document.getElementById('fullName').value,
-                phone: document.getElementById('phoneNumber').value,
-                email: email,
-                school: "Iqra International School Tokyo"
-            };
-
-            if(role === 'parent') {
-                userData.studentName = document.getElementById('studentName').value;
-                userData.address = document.getElementById('address').value;
+            if (querySnapshot.empty) {
+                // NEW PARENT: Create Auth and User Profile
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                uid = userCredential.user.uid;
+                await addDoc(collection(db, "users"), {
+                    uid: uid,
+                    role: "parent",
+                    email: email,
+                    fatherName: document.getElementById('fatherName').value,
+                    motherName: document.getElementById('motherName').value,
+                    fatherPhone: document.getElementById('fatherPhone').value,
+                    motherPhone: document.getElementById('motherPhone').value,
+                    primaryContact: document.getElementById('primaryContact').value
+                });
             } else {
-                userData.carNumber = document.getElementById('carNumber').value;
+                // EXISTING PARENT: Just get their UID
+                uid = querySnapshot.docs[0].data().uid;
             }
 
-            await addDoc(collection(db, "users"), userData);
-            alert(role.toUpperCase() + " created successfully!");
+            // Always create a new Student document linked to that UID
+            await addDoc(collection(db, "students"), {
+                parentUid: uid,
+                name: document.getElementById('studentName').value,
+                dob: document.getElementById('dob').value,
+                gender: document.getElementById('gender').value,
+                address: document.getElementById('address').value,
+                school: "Iqra International School Tokyo",
+                status: "Awaiting Pickup"
+            });
+
+            alert("Student Registered Successfully!");
             document.getElementById('registrationForm').reset();
-            toggleFields();
         } catch (error) { alert(error.message); }
     });
 
-    // LIST USERS
-    onSnapshot(collection(db, "users"), (snapshot) => {
-        const tableBody = document.getElementById('userTableBody');
+    // DISPLAY LIST
+    onSnapshot(collection(db, "students"), (snapshot) => {
+        const tableBody = document.getElementById('studentTableBody');
         tableBody.innerHTML = "";
         snapshot.forEach((docData) => {
-            const u = docData.data();
-            const id = docData.id;
-            const detail = u.role === 'parent' ? `Student: ${u.studentName}` : `Car: ${u.carNumber}`;
-            
+            const s = docData.data();
             tableBody.innerHTML += `
                 <tr>
-                    <td>${u.name}</td>
-                    <td><span class="role-badge role-${u.role}">${u.role}</span></td>
-                    <td>${u.email}</td>
-                    <td>${detail}</td>
-                    <td><button class="delete-btn" onclick="removeUser('${id}')">Delete</button></td>
+                    <td><strong>${s.name}</strong></td>
+                    <td><span class="gender-badge ${s.gender}">${s.gender}</span></td>
+                    <td>${s.dob}</td>
+                    <td>Parent Account</td>
+                    <td>${s.address}</td>
+                    <td><button style="background:red; color:white; border:none; padding:5px; border-radius:3px; cursor:pointer;">Delete</button></td>
                 </tr>
             `;
         });
     });
-
-    window.removeUser = async (id) => {
-        if(confirm("Delete this user profile?")) {
-            await deleteDoc(doc(db, "users", id));
-        }
-    }
 </script>
 </body>
 </html>
