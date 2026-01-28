@@ -3,45 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Parent Portal - RS Transport</title>
+    <title>RS Transport Solution</title>
     <style>
-        body { font-family: sans-serif; padding: 15px; background: #f0f4f8; }
-        .card { background: white; padding: 20px; border-radius: 12px; margin-bottom: 15px; border-top: 5px solid #1a73e8; }
-        .status { font-size: 1.2em; color: #e65100; font-weight: bold; margin: 10px 0; }
+        body { font-family: 'Segoe UI', sans-serif; text-align: center; padding: 50px; background: #f4f7f6; }
+        .logo { color: #1a73e8; margin-bottom: 10px; }
+        .btn { 
+            display: inline-block; padding: 15px 30px; margin: 10px; 
+            background: #1a73e8; color: white; text-decoration: none; 
+            border-radius: 8px; font-weight: bold; 
+        }
+        .admin-btn { background: #333; }
     </style>
 </head>
 <body>
-    <h1>Family Dashboard</h1>
-    <div id="familyList"></div>
-
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-    import { getFirestore, collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-    const firebaseConfig = { /* USE YOUR CONFIG HERE */ };
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-
-    onAuthStateChanged(auth, (user) => {
-        if (user) {
-            const q = query(collection(db, "students"), where("parentUid", "==", user.uid));
-            onSnapshot(q, (snap) => {
-                const list = document.getElementById('familyList');
-                list.innerHTML = "";
-                snap.forEach(d => {
-                    const s = d.data();
-                    list.innerHTML += `
-                        <div class="card">
-                            <h2>${s.name}</h2>
-                            <div class="status">${s.status}</div>
-                            <p>Pickup: ${s.address}</p>
-                        </div>`;
-                });
-            });
-        } else { window.location.href = "login.html"; }
-    });
-</script>
+    <div class="logo">
+        <h1>RS Transport Solution</h1>
+        <p>Iqra International School Tokyo</p>
+    </div>
+    <hr>
+    <a href="login.html" class="btn">Parent & Driver Login</a>
+    <br>
+    <a href="admin.html" class="btn admin-btn">Admin Portal</a>
 </body>
 </html>
