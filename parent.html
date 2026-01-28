@@ -5,58 +5,116 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Parent Portal - RS Transport</title>
     <style>
-        body { font-family: sans-serif; background: #f0f4f8; padding: 15px; }
-        .notice-bar { background: #fff3e0; border-left: 5px solid #ff9800; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-        .student-card { background: white; padding: 20px; border-radius: 12px; margin-bottom: 15px; border-top: 5px solid #1a73e8; }
-        .status { font-size: 1.2em; color: #1a73e8; font-weight: bold; }
-        .btn-leave { background: #f44336; color: white; border: none; padding: 10px; border-radius: 4px; width: 100%; margin-top: 10px; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; padding: 15px; margin: 0; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .notice-bar { background: #fff3e0; border-left: 5px solid #ff9800; padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .student-card { background: white; padding: 20px; border-radius: 12px; margin-bottom: 15px; border-top: 5px solid #1a73e8; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .status { font-size: 1.1em; color: #1a73e8; font-weight: bold; background: #eef2ff; padding: 8px; border-radius: 6px; display: inline-block; margin: 10px 0; }
+        .btn-leave { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; padding: 12px; border-radius: 6px; width: 100%; margin-top: 10px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-leave:hover { background: #fecaca; }
+        .logout-btn { background: #666; color: white; border: none; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8em; }
     </style>
 </head>
 <body>
+
+    <div class="header">
+        <h2>Family Dashboard</h2>
+        <button class="logout-btn" id="logoutBtn">Sign Out</button>
+    </div>
+
     <div id="notices"></div>
-    <h2>My Children</h2>
-    <div id="familyList"></div>
+    
+    <div id="familyList">
+        <p style="text-align: center; color: #888;">Loading student data...</p>
+    </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
     import { getFirestore, collection, query, where, onSnapshot, doc, updateDoc, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    const firebaseConfig = { /* YOUR CONFIG */ };
+    const firebaseConfig = {
+        apiKey: "AIzaSyCS163x5b5-MJXxJGwbjE0IlO7R58CkJMg",
+        authDomain: "maktab-transport.firebaseapp.com",
+        projectId: "maktab-transport",
+        storageBucket: "maktab-transport.firebasestorage.app",
+        messagingSenderId: "575357634901",
+        appId: "1:575357634901:web:4918fb77b0c21965af07dc"
+    };
+
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    // Listen for Notices
-    const qNotice = query(collection(db, "notices"), orderBy("time", "desc"), limit(1));
-    onSnapshot(qNotice, (snap) => {
-        const bar = document.getElementById('notices');
-        snap.forEach(d => {
-            bar.innerHTML = `<div class="notice-bar"><strong>Notice:</strong> ${d.data().msg}</div>`;
-        });
+    // 1. Authentication Check & Logout
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            loadStudentData(user.uid);
+            loadNotices();
+        } else {
+            window.location.href = "login.html";
+        }
     });
 
-    onAuthStateChanged(auth, (user) => {
-        if (!user) return;
-        const q = query(collection(db, "students"), where("parentUid", "==", user.uid));
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+        signOut(auth).then(() => window.location.href = "login.html");
+    });
+
+    // 2. Listen for Notices (Most recent first)
+    function loadNotices() {
+        const qNotice = query(collection(db, "notices"), orderBy("time", "desc"), limit(1));
+        onSnapshot(qNotice, (snap) => {
+            const bar = document.getElementById('notices');
+            if (snap.empty) {
+                bar.innerHTML = "";
+                return;
+            }
+            snap.forEach(d => {
+                bar.innerHTML = `<div class="notice-bar"><strong>Announcement:</strong><br>${d.data().msg}</div>`;
+            });
+        }, (error) => {
+            console.error("Notice Query failed. You might need to create a Firestore Index.", error);
+        });
+    }
+
+    // 3. Load Sibling List
+    function loadStudentData(parentUid) {
+        const q = query(collection(db, "students"), where("parentUid", "==", parentUid));
         onSnapshot(q, (snap) => {
             const list = document.getElementById('familyList');
             list.innerHTML = "";
+            
+            if (snap.empty) {
+                list.innerHTML = "<p>No children linked to this account.</p>";
+                return;
+            }
+
             snap.forEach(d => {
                 const s = d.data();
                 list.innerHTML += `
-                    <div class="card student-card">
-                        <h3>${s.name}</h3>
-                        <div class="status">${s.status}</div>
-                        <button class="btn-leave" onclick="reqLeave('${d.id}')">Request Leave (Today)</button>
+                    <div class="student-card">
+                        <small style="color: #888;">STUDENT</small>
+                        <h3 style="margin: 5px 0;">${s.name}</h3>
+                        <div class="status">Current Status: ${s.status || 'Awaiting'}</div>
+                        <p style="font-size: 0.9em; color: #666;">📍 ${s.address || 'Address not set'}</p>
+                        <button class="btn-leave" onclick="reqLeave('${d.id}', '${s.name}')">Report Absence Today</button>
                     </div>`;
             });
         });
-    });
+    }
 
-    window.reqLeave = async (id) => {
-        if(confirm("Mark student as absent for today?")) {
-            await updateDoc(doc(db, "students", id), { status: "Absent" });
+    // 4. Leave Request Function
+    window.reqLeave = async (id, name) => {
+        if(confirm(`Mark ${name} as absent for today?`)) {
+            try {
+                await updateDoc(doc(db, "students", id), { 
+                    status: "Absent",
+                    lastUpdated: new Date() 
+                });
+                alert("Status updated to Absent.");
+            } catch (err) {
+                alert("Error updating status: " + err.message);
+            }
         }
     };
 </script>
