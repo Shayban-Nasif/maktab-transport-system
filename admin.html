@@ -5,22 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin - RS Transport Solution</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background-color: #f4f7f6; }
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background-color: #f4f7f6; }
         .container { max-width: 1000px; margin: auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         .branding { text-align: center; color: #1a73e8; margin-bottom: 30px; border-bottom: 2px solid #eee; padding-bottom: 10px; }
-        h2 { color: #333; margin-top: 0; }
         
-        /* Two-column grid for the form */
-        form { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 30px; }
-        input { padding: 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px; }
+        form { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 30px; padding: 20px; background: #f9f9f9; border-radius: 8px; }
+        input, select { padding: 12px; border: 1px solid #ddd; border-radius: 5px; }
         .full-width { grid-column: span 2; }
         
-        button.add-btn { grid-column: span 2; background-color: #28a745; color: white; border: none; padding: 15px; cursor: pointer; font-weight: bold; border-radius: 5px; font-size: 16px; }
-        button.add-btn:hover { background-color: #218838; }
-
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
+        button.add-btn { grid-column: span 2; background-color: #1a73e8; color: white; border: none; padding: 15px; cursor: pointer; font-weight: bold; border-radius: 5px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { text-align: left; padding: 12px; border-bottom: 1px solid #ddd; }
-        th { background-color: #f8f9fa; color: #555; }
+        .role-badge { padding: 4px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold; }
+        .role-parent { background: #e3f2fd; color: #1976d2; }
+        .role-driver { background: #e8f5e9; color: #2e7d32; }
         .delete-btn { background-color: #dc3545; color: white; border: none; padding: 6px 12px; cursor: pointer; border-radius: 4px; }
     </style>
 </head>
@@ -29,37 +28,44 @@
 <div class="container">
     <div class="branding">
         <h1>RS Transport Solution</h1>
-        <p>Official Portal | Iqra International School Tokyo</p>
+        <p>Iqra International School Tokyo | System Admin</p>
     </div>
 
-    <h2>Register New Student & Parent Account</h2>
-    <form id="studentForm">
-        <input type="text" id="studentName" placeholder="Student Name" required>
-        <input type="text" id="pickupLocation" placeholder="Pickup Address" required>
+    <h2>Create New User Profile</h2>
+    <form id="registrationForm">
+        <select id="userRole" class="full-width" onchange="toggleFields()" required>
+            <option value="parent">Register as Parent</option>
+            <option value="driver">Register as Driver</option>
+        </select>
+
+        <input type="text" id="fullName" placeholder="Full Name" required>
+        <input type="tel" id="phoneNumber" placeholder="Phone Number" required>
         
-        <input type="text" id="parentName" placeholder="Parent's Name" required>
-        <input type="tel" id="parentPhone" placeholder="Parent Phone Number" required>
+        <input type="text" id="studentName" placeholder="Student Name" class="parent-only">
+        <input type="text" id="address" placeholder="Pickup/Home Address" class="parent-only">
         
-        <input type="email" id="parentEmail" placeholder="Parent Email (Login ID)" required>
-        <input type="password" id="parentPassword" placeholder="Set Password (min 6 chars)" required>
+        <input type="text" id="carNumber" placeholder="Car Plate Number" class="driver-only" style="display:none;">
+
+        <input type="email" id="userEmail" placeholder="Email (Login ID)" required>
+        <input type="password" id="userPassword" placeholder="Set Password (min 6 chars)" required>
         
-        <button type="submit" class="add-btn">Create Account & Register Student</button>
+        <button type="submit" class="add-btn">Create Profile</button>
     </form>
 
     <hr>
 
-    <h2>Active Student List</h2>
+    <h2>System Users</h2>
     <table>
         <thead>
             <tr>
-                <th>Student</th>
-                <th>Parent</th>
+                <th>Name</th>
+                <th>Role</th>
                 <th>Email</th>
-                <th>Pickup Address</th>
+                <th>Details</th>
                 <th>Action</th>
             </tr>
         </thead>
-        <tbody id="studentTableBody"></tbody>
+        <tbody id="userTableBody"></tbody>
     </table>
 </div>
 
@@ -80,64 +86,80 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const auth = getAuth(app);
-    const studentTableBody = document.getElementById('studentTableBody');
 
-    // 1. REGISTER STUDENT + CREATE AUTH USER
-    const studentForm = document.getElementById('studentForm');
-    studentForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
+    // UI Toggle for Driver/Parent fields
+    window.toggleFields = () => {
+        const role = document.getElementById('userRole').value;
+        const parentFields = document.querySelectorAll('.parent-only');
+        const driverFields = document.querySelectorAll('.driver-only');
         
-        const email = document.getElementById('parentEmail').value;
-        const password = document.getElementById('parentPassword').value;
+        if(role === 'driver') {
+            parentFields.forEach(f => f.style.display = 'none');
+            driverFields.forEach(f => f.style.display = 'block');
+        } else {
+            parentFields.forEach(f => f.style.display = 'block');
+            driverFields.forEach(f => f.style.display = 'none');
+        }
+    };
+
+    // CREATE USER LOGIC
+    document.getElementById('registrationForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const role = document.getElementById('userRole').value;
+        const email = document.getElementById('userEmail').value;
+        const password = document.getElementById('userPassword').value;
 
         try {
-            // A. Create the Login User in Firebase Auth
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
 
-            // B. Save details in Firestore linked by the UID
-            await addDoc(collection(db, "students"), {
+            const userData = {
                 uid: user.uid,
-                name: document.getElementById('studentName').value,
-                parentName: document.getElementById('parentName').value,
-                parentEmail: email,
-                phone: document.getElementById('parentPhone').value,
-                pickup: document.getElementById('pickupLocation').value,
-                school: "Iqra International School Tokyo",
-                role: "parent",
-                createdAt: new Date()
-            });
+                role: role,
+                name: document.getElementById('fullName').value,
+                phone: document.getElementById('phoneNumber').value,
+                email: email,
+                school: "Iqra International School Tokyo"
+            };
 
-            alert("Account created successfully!");
-            studentForm.reset();
-        } catch (error) {
-            alert("Error: " + error.message);
-        }
+            if(role === 'parent') {
+                userData.studentName = document.getElementById('studentName').value;
+                userData.address = document.getElementById('address').value;
+            } else {
+                userData.carNumber = document.getElementById('carNumber').value;
+            }
+
+            await addDoc(collection(db, "users"), userData);
+            alert(role.toUpperCase() + " created successfully!");
+            document.getElementById('registrationForm').reset();
+            toggleFields();
+        } catch (error) { alert(error.message); }
     });
 
-    // 2. REAL-TIME LIST
-    onSnapshot(collection(db, "students"), (snapshot) => {
-        studentTableBody.innerHTML = "";
+    // LIST USERS
+    onSnapshot(collection(db, "users"), (snapshot) => {
+        const tableBody = document.getElementById('userTableBody');
+        tableBody.innerHTML = "";
         snapshot.forEach((docData) => {
-            const student = docData.data();
+            const u = docData.data();
             const id = docData.id;
-            const row = `
+            const detail = u.role === 'parent' ? `Student: ${u.studentName}` : `Car: ${u.carNumber}`;
+            
+            tableBody.innerHTML += `
                 <tr>
-                    <td><strong>${student.name}</strong></td>
-                    <td>${student.parentName}</td>
-                    <td>${student.parentEmail}</td>
-                    <td>${student.pickup}</td>
-                    <td><button class="delete-btn" onclick="removeStudent('${id}')">Delete</button></td>
+                    <td>${u.name}</td>
+                    <td><span class="role-badge role-${u.role}">${u.role}</span></td>
+                    <td>${u.email}</td>
+                    <td>${detail}</td>
+                    <td><button class="delete-btn" onclick="removeUser('${id}')">Delete</button></td>
                 </tr>
             `;
-            studentTableBody.innerHTML += row;
         });
     });
 
-    // 3. DELETE FUNCTION
-    window.removeStudent = async (id) => {
-        if(confirm("Delete this student? Note: This only removes the record, not the login account.")) {
-            await deleteDoc(doc(db, "students", id));
+    window.removeUser = async (id) => {
+        if(confirm("Delete this user profile?")) {
+            await deleteDoc(doc(db, "users", id));
         }
     }
 </script>
