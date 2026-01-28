@@ -105,6 +105,20 @@
     import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
     import { getFirestore, collection, addDoc, query, where, getDocs, onSnapshot, serverTimestamp, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    
+    const auth = getAuth(app);
+    
+    onAuthStateChanged(auth, (user) => {
+        if (!user) {
+            // If not logged in, send them to the login page
+            window.location.href = "login.html";
+        } else {
+            // Optional: Check if the logged-in user has the right role for THIS page
+            // This prevents a Driver from manually typing 'admin.html' to enter.
+        }
+    });
+    
     const firebaseConfig = { 
         apiKey: "AIzaSyCS163x5b5-MJXxJGwbjE0IlO7R58CkJMg",
         authDomain: "maktab-transport.firebaseapp.com",
