@@ -8,32 +8,44 @@
         :root { --admin: #1a73e8; --driver: #28a745; --parent: #ff9800; --bg: #f4f7f9; --danger: #dc3545; --dark: #1e293b; --done: #94a3b8; }
         body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; min-height: 100vh; color: #333; }
         
-        .header-bar { background: var(--dark); color: white; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1000; }
-        .header-titles h1 { margin: 0; font-size: 1.1rem; }
+        /* Mobile Responsive Header */
+        .header-bar { background: var(--dark); color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1000; flex-wrap: wrap; }
+        .header-titles h1 { margin: 0; font-size: 1rem; }
         
-        .container { width: 95%; max-width: 1200px; margin: 20px auto; }
+        .container { width: 98%; max-width: 1200px; margin: 10px auto; }
         .hidden { display: none !important; }
         
-        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 25px; }
-        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
         .full-width { grid-column: 1 / -1; }
 
-        .scroll-box { max-height: 300px; overflow-y: auto; border: 1px solid #eee; border-radius: 8px; margin-top: 10px; background: white; }
+        .scroll-box { max-height: 400px; overflow-x: auto; border: 1px solid #eee; border-radius: 8px; background: white; }
 
-        .portal-tag { padding: 4px 12px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; color: white; text-transform: uppercase; }
+        .portal-tag { padding: 4px 10px; border-radius: 20px; font-size: 0.65rem; font-weight: 700; color: white; text-transform: uppercase; }
         .bg-admin { background: var(--admin); } .bg-driver { background: var(--driver); } .bg-parent { background: var(--parent); }
 
-        input, select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
-        button { padding: 12px 15px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 0.9rem; }
+        button { padding: 10px 15px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: opacity 0.2s; }
+        button:hover { opacity: 0.9; }
         
         .btn-ready { background: var(--driver); color: white; }
-        .btn-gray { background: var(--done); color: white; border: 2px solid #777; }
+        .btn-gray { background: var(--done); color: white; border: 1px solid #777; }
 
-        table { width: 100%; border-collapse: collapse; min-width: 800px; }
-        th, td { text-align: left; padding: 14px; border-bottom: 1px solid #eee; font-size: 0.85rem; }
-        th { background: #f8fafc; color: #64748b; position: sticky; top: 0; z-index: 10; }
+        /* Responsive Table */
+        table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        th, td { text-align: left; padding: 10px; border-bottom: 1px solid #eee; }
+        th { background: #f8fafc; color: #64748b; white-space: nowrap; }
 
-        .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
+        .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+        
+        /* Edit Buttons in Table */
+        .btn-edit-sm { background: #f1f5f9; color: #475569; padding: 4px 8px; font-size: 0.7rem; border: 1px solid #cbd5e1; }
+
+        @media (max-width: 600px) {
+            .header-bar { flex-direction: column; text-align: center; }
+            .header-titles { margin-bottom: 10px; }
+            .form-grid { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
@@ -41,27 +53,27 @@
     <header class="header-bar">
         <div class="header-titles">
             <h1>RS TRANSPORT SOLUTION</h1>
-            <p style="margin:0; font-size:0.7rem; opacity:0.8;">Iqra International School Tokyo</p>
+            <p style="margin:0; font-size:0.6rem; opacity:0.8;">Iqra International School Tokyo</p>
         </div>
         <div id="userInfo" class="hidden" style="text-align: right;">
-            <div id="userDisplayName" style="font-weight: bold;"></div>
+            <div id="userDisplayName" style="font-size: 0.8rem; font-weight: bold;"></div>
             <div id="portalLabel"></div>
         </div>
     </header>
 
     <div class="container">
-        <div id="loginSection" class="card" style="max-width:400px; margin: 60px auto; text-align:center;">
-            <h2>System Login</h2>
+        <div id="loginSection" class="card" style="max-width:350px; margin: 40px auto; text-align:center;">
+            <h3>System Login</h3>
             <form id="loginForm">
                 <input type="email" id="email" placeholder="Email" required style="margin-bottom:10px;">
-                <input type="password" id="password" placeholder="Password" required style="margin-bottom:20px;">
+                <input type="password" id="password" placeholder="Password" required style="margin-bottom:15px;">
                 <button type="submit" style="background:var(--admin); color:white; width:100%;">Login</button>
             </form>
         </div>
 
         <div id="dashboardSection" class="hidden">
-            <div style="display:flex; justify-content: flex-end; margin-bottom: 15px;">
-                <button onclick="window.handleLogout()" style="background:#64748b; color:white;">Logout</button>
+            <div style="display:flex; justify-content: flex-end; margin-bottom: 10px;">
+                <button onclick="window.handleLogout()" style="background:#64748b; color:white; padding: 6px 12px; font-size:0.8rem;">Logout</button>
             </div>
             <div id="dynamicContent"></div>
         </div>
@@ -88,19 +100,20 @@
 
     let driverMap = {}; 
 
-    // --- LOGIN HANDLER ---
-    document.getElementById('loginForm').onsubmit = async (e) => {
-        e.preventDefault();
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
-        try {
-            await signInWithEmailAndPassword(auth, email, password);
-        } catch (error) {
-            alert("Login Failed: " + error.message);
-        }
+    // Helper: Age Calculation
+    const getAge = (dob) => {
+        if(!dob) return "-";
+        const diff = Date.now() - new Date(dob).getTime();
+        return Math.abs(new Date(diff).getUTCFullYear() - 1970);
     };
 
-    // --- AUTH STATE LISTENER ---
+    document.getElementById('loginForm').onsubmit = async (e) => {
+        e.preventDefault();
+        try {
+            await signInWithEmailAndPassword(auth, email.value, password.value);
+        } catch (error) { alert("Login Failed"); }
+    };
+
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             const q = query(collection(db, "users"), where("uid", "==", user.uid));
@@ -109,7 +122,7 @@
                 const data = snap.docs[0].data();
                 document.getElementById('userDisplayName').innerText = data.fullName;
                 const label = document.getElementById('portalLabel');
-                label.innerText = data.role + " portal";
+                label.innerText = data.role;
                 label.className = `portal-tag bg-${data.role}`;
                 document.getElementById('userInfo').classList.remove('hidden');
                 
@@ -122,8 +135,6 @@
         } else {
             document.getElementById('loginSection').classList.remove('hidden');
             document.getElementById('dashboardSection').classList.add('hidden');
-            document.getElementById('userInfo').classList.add('hidden');
-            document.getElementById('dynamicContent').innerHTML = "";
         }
     });
 
@@ -136,16 +147,19 @@
         else renderParent(target, user.uid);
     }
 
-    // --- GLOBAL ACTIONS ---
+    // --- ACTIONS ---
+    window.updateStudentField = async (sid, field, current) => {
+        const val = prompt(`Update ${field}:`, current);
+        if(val !== null) await updateDoc(doc(db, "students", sid), { [field]: val });
+    };
+
     window.toggleStatus = async (sid, sName, field, isDone) => {
         const today = new Date().toLocaleDateString('en-CA');
         const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const docId = `${sid}_${today}`;
         if (isDone) {
-            if (confirm("Reset this status?")) {
-                await updateDoc(doc(db, "history", docId), { [field]: deleteField() });
-                await updateDoc(doc(db, "students", sid), { status: "AWAITING" });
-            }
+            await updateDoc(doc(db, "history", docId), { [field]: deleteField() });
+            await updateDoc(doc(db, "students", sid), { status: "AWAITING" });
         } else {
             await updateDoc(doc(db, "students", sid), { status: field.replace('_', ' ').toUpperCase() });
             await setDoc(doc(db, "history", docId), {
@@ -154,105 +168,42 @@
         }
     };
 
-    window.editVehicle = async (id, current) => {
-        const val = prompt("Update Vehicle Info:", current);
-        if(val) await updateDoc(doc(db, "users", id), { assignedCar: val });
-    };
-
-    window.reassignDriver = async (sid, newUid) => {
-        await updateDoc(doc(db, "students", sid), { driverUid: newUid });
-    };
-
-    window.handleLogout = () => signOut(auth);
-    window.delDoc = async (c, id) => { if(confirm("Delete record?")) await deleteDoc(doc(db, c, id)); };
-
     // --- ADMIN VIEW ---
     function renderAdmin(target) {
         target.innerHTML = `
-            <div class="card" style="border-top:5px solid var(--driver)">
-                <h3>Driver Registration</h3>
-                <form id="regDriverForm" class="form-grid">
-                    <input type="text" id="dName" placeholder="Driver Name" required>
-                    <input type="email" id="dEmail" placeholder="Email" required>
-                    <input type="text" id="dPhone" placeholder="Phone" required>
-                    <input type="text" id="dCar" placeholder="Vehicle Info" required>
-                    <input type="password" id="dPass" placeholder="Password" required>
-                    <button type="submit" style="background:var(--driver); color:white;">Add Driver</button>
-                </form>
-            </div>
-
-            <div class="card" style="border-top:5px solid var(--admin)">
-                <h3>Student Registration</h3>
+            <div class="card" style="border-top:4px solid var(--admin)">
+                <h4>Student Enrollment</h4>
                 <form id="regStForm" class="form-grid">
-                    <input type="text" id="sName" placeholder="Student Name" required>
-                    <input type="text" id="sFather" placeholder="Father">
+                    <input type="text" id="sName" placeholder="Full Name" required>
+                    <select id="sGender"><option value="Male">Male</option><option value="Female">Female</option></select>
+                    <input type="date" id="sDob" title="Date of Birth" required>
+                    <input type="text" id="sFather" placeholder="Father's Name">
                     <input type="text" id="sFPhone" placeholder="Father Phone">
-                    <input type="text" id="sMother" placeholder="Mother">
-                    <input type="text" id="sMPhone" placeholder="Mother Phone">
-                    <select id="sPrimary"><option value="Father">Primary: Father</option><option value="Mother">Primary: Mother</option></select>
-                    <input type="email" id="sPEmail" placeholder="Parent Email" required>
-                    <input type="password" id="sPPass" placeholder="Parent Password" required>
-                    <input type="text" id="sAddr" placeholder="Address" class="full-width">
-                    <select id="sDriverSelect" class="full-width"><option value="">Initial Driver Assignment...</option></select>
-                    <button type="submit" style="background:var(--admin); color:white;" class="full-width">Register Student</button>
+                    <input type="email" id="sPEmail" placeholder="Parent Login Email" required>
+                    <input type="password" id="sPPass" placeholder="Login Password" required>
+                    <input type="text" id="sAddr" placeholder="Home Address" class="full-width">
+                    <select id="sDriverSelect" class="full-width"><option value="">Assign Driver...</option></select>
+                    <button type="submit" style="background:var(--admin); color:white;" class="full-width">Enroll Student</button>
                 </form>
             </div>
 
             <div class="card">
-                <h3>Daily Logs (Scrollable)</h3>
+                <h4>Registered Students (Scroll for details)</h4>
                 <div class="scroll-box">
                     <table>
-                        <thead><tr><th>Date</th><th>Student</th><th>M.Pick</th><th>M.Drop</th><th>R.Pick</th><th>R.Drop</th></tr></thead>
-                        <tbody id="historyBody"></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="card">
-                <h3>Driver Management</h3>
-                <div class="table-wrapper">
-                    <table>
-                        <thead><tr><th>Name</th><th>Phone</th><th>Vehicle (Click to Edit)</th><th>Action</th></tr></thead>
-                        <tbody id="adminDrBody"></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="card">
-                <h3>Student Feed & Assignment</h3>
-                <div class="table-wrapper">
-                    <table>
-                        <thead><tr><th>Student</th><th>Contact</th><th>Assigned Driver</th><th>Status</th><th>Action</th></tr></thead>
+                        <thead>
+                            <tr>
+                                <th>Name (Age/G)</th>
+                                <th>Pickup Location</th>
+                                <th>Dropoff Location</th>
+                                <th>Driver</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
                         <tbody id="stBody"></tbody>
                     </table>
                 </div>
             </div>`;
-
-        onSnapshot(query(collection(db, "history"), orderBy("timestamp", "desc"), limit(50)), (snap) => {
-            const hb = document.getElementById('historyBody');
-            if(hb) {
-                hb.innerHTML = "";
-                snap.forEach(d => {
-                    const h = d.data();
-                    hb.innerHTML += `<tr><td>${h.date}</td><td>${h.studentName}</td>
-                        <td>${h.morn_pick || '-'}</td><td>${h.morn_drop || '-'}</td>
-                        <td>${h.ret_pick || '-'}</td><td>${h.ret_drop || '-'}</td></tr>`;
-                });
-            }
-        });
-
-        onSnapshot(query(collection(db, "users"), where("role", "==", "driver")), (snap) => {
-            const adb = document.getElementById('adminDrBody');
-            if(adb) {
-                adb.innerHTML = "";
-                snap.forEach(d => {
-                    const data = d.data();
-                    adb.innerHTML += `<tr><td>${data.fullName}</td><td>${data.phone}</td>
-                        <td><button style="background:var(--admin); color:white; font-size:0.75rem;" onclick="window.editVehicle('${d.id}', '${data.assignedCar}')">${data.assignedCar}</button></td>
-                        <td><button style="color:var(--danger)" onclick="window.delDoc('users','${d.id}')">Remove</button></td></tr>`;
-                });
-            }
-        });
 
         onSnapshot(collection(db, "students"), (snap) => {
             const body = document.getElementById('stBody');
@@ -262,16 +213,20 @@
                 snap.forEach(docSnap => {
                     const s = docSnap.data();
                     const sid = docSnap.id;
+                    const pickup = s.pickupLoc || s.address || "Set Pickup";
+                    const dropoff = s.dropoffLoc || s.address || "Set Dropoff";
+                    
                     let drOptions = `<option value="">Unassigned</option>`;
                     Object.keys(driverMap).forEach(uid => {
                         drOptions += `<option value="${uid}" ${s.driverUid === uid ? 'selected' : ''}>${driverMap[uid].fullName}</option>`;
                     });
+
                     body.innerHTML += `<tr>
-                        <td><strong>${s.name}</strong></td>
-                        <td>${s.fPhone || s.mPhone}</td>
-                        <td><select onchange="window.reassignDriver('${sid}', this.value)" style="padding:5px; font-size:0.75rem;">${drOptions}</select></td>
-                        <td><span class="portal-tag bg-driver">${s.status}</span></td>
-                        <td><button style="color:var(--danger)" onclick="window.delDoc('students','${sid}')">Delete</button></td>
+                        <td><strong>${s.name}</strong><br><small>${getAge(s.dob)}Y / ${s.gender || 'M'}</small></td>
+                        <td>${pickup} <button class="btn-edit-sm" onclick="window.updateStudentField('${sid}','pickupLoc','${pickup}')">Edit</button></td>
+                        <td>${dropoff} <button class="btn-edit-sm" onclick="window.updateStudentField('${sid}','dropoffLoc','${dropoff}')">Edit</button></td>
+                        <td><select onchange="window.reassignDriver('${sid}', this.value)" style="font-size:0.7rem;">${drOptions}</select></td>
+                        <td><button style="color:var(--danger); font-size:0.7rem;" onclick="window.delDoc('students','${sid}')">Delete</button></td>
                     </tr>`;
                 });
             }
@@ -281,39 +236,24 @@
             }
         });
 
-        document.getElementById('regDriverForm').onsubmit = async (e) => {
-            e.preventDefault();
-            const dName = document.getElementById('dName').value;
-            const dEmail = document.getElementById('dEmail').value;
-            const dPhone = document.getElementById('dPhone').value;
-            const dCar = document.getElementById('dCar').value;
-            const dPass = document.getElementById('dPass').value;
-            const cred = await createUserWithEmailAndPassword(secAuth, dEmail, dPass);
-            await addDoc(collection(db, "users"), { uid: cred.user.uid, fullName: dName, email: dEmail, role: "driver", phone: dPhone, assignedCar: dCar });
-            await signOut(secAuth); alert("Driver Created!"); e.target.reset();
-        };
-
         document.getElementById('regStForm').onsubmit = async (e) => {
             e.preventDefault();
-            const sName = document.getElementById('sName').value;
-            const sFather = document.getElementById('sFather').value;
-            const sPEmail = document.getElementById('sPEmail').value;
-            const sPPass = document.getElementById('sPPass').value;
-            const cred = await createUserWithEmailAndPassword(secAuth, sPEmail, sPPass);
-            await addDoc(collection(db, "users"), { uid: cred.user.uid, fullName: sFather, email: sPEmail, role: "parent" });
-            await addDoc(collection(db, "students"), { 
-                name: sName, father: sFather, fPhone: document.getElementById('sFPhone').value, 
-                mother: document.getElementById('sMother').value, mPhone: document.getElementById('sMPhone').value, 
-                primary: document.getElementById('sPrimary').value, parentUid: cred.user.uid, 
-                address: document.getElementById('sAddr').value, driverUid: document.getElementById('sDriverSelect').value, status: "AWAITING" 
-            });
-            await signOut(secAuth); alert("Student Registered!"); e.target.reset();
+            try {
+                const cred = await createUserWithEmailAndPassword(secAuth, sPEmail.value, sPPass.value);
+                await addDoc(collection(db, "users"), { uid: cred.user.uid, fullName: sFather.value, email: sPEmail.value, role: "parent" });
+                await addDoc(collection(db, "students"), { 
+                    name: sName.value, gender: sGender.value, dob: sDob.value, father: sFather.value, fPhone: sFPhone.value,
+                    parentUid: cred.user.uid, address: sAddr.value, pickupLoc: sAddr.value, dropoffLoc: sAddr.value,
+                    driverUid: sDriverSelect.value, status: "AWAITING" 
+                });
+                await signOut(secAuth); alert("Student Enrolled!"); e.target.reset();
+            } catch (err) { alert(err.message); }
         };
     }
 
     // --- DRIVER VIEW ---
     function renderDriver(target, uid) {
-        target.innerHTML = `<div class="card"><h3>My Route</h3><div id="dList"></div></div>`;
+        target.innerHTML = `<div class="card"><h4>My Route Today</h4><div id="dList"></div></div>`;
         const today = new Date().toLocaleDateString('en-CA');
         onSnapshot(query(collection(db, "students"), where("driverUid", "==", uid)), (snap) => {
             const list = document.getElementById('dList');
@@ -322,13 +262,20 @@
                 const s = docSnap.data();
                 const sid = docSnap.id;
                 list.innerHTML += `
-                    <div class="card" style="border-left:5px solid var(--driver)">
-                        <strong>${s.name}</strong><br><small>${s.address}</small>
+                    <div class="card" style="border-left:5px solid var(--driver); padding: 12px;">
+                        <div style="display:flex; justify-content:space-between;">
+                            <strong>${s.name}</strong>
+                            <span class="portal-tag bg-driver" style="font-size:0.6rem;">${s.status}</span>
+                        </div>
+                        <p style="font-size:0.75rem; margin: 8px 0;">
+                            📍 <b>Pick:</b> ${s.pickupLoc || s.address}<br>
+                            🏁 <b>Drop:</b> ${s.dropoffLoc || s.address}
+                        </p>
                         <div class="status-grid">
-                            <button id="b1_${sid}" class="btn-ready" onclick="window.toggleStatus('${sid}', '${s.name}', 'morn_pick', this.dataset.done === 'true')">Morn Pick</button>
-                            <button id="b2_${sid}" class="btn-ready" onclick="window.toggleStatus('${sid}', '${s.name}', 'morn_drop', this.dataset.done === 'true')">Morn Drop</button>
-                            <button id="b3_${sid}" class="btn-ready" onclick="window.toggleStatus('${sid}', '${s.name}', 'ret_pick', this.dataset.done === 'true')">Ret Pick</button>
-                            <button id="b4_${sid}" class="btn-ready" onclick="window.toggleStatus('${sid}', '${s.name}', 'ret_drop', this.dataset.done === 'true')">Ret Drop</button>
+                            <button id="b1_${sid}" class="btn-ready" onclick="window.toggleStatus('${sid}', '${s.name}', 'morn_pick', this.dataset.done === 'true')">AM Pick</button>
+                            <button id="b2_${sid}" class="btn-ready" onclick="window.toggleStatus('${sid}', '${s.name}', 'morn_drop', this.dataset.done === 'true')">AM Drop</button>
+                            <button id="b3_${sid}" class="btn-ready" onclick="window.toggleStatus('${sid}', '${s.name}', 'ret_pick', this.dataset.done === 'true')">PM Pick</button>
+                            <button id="b4_${sid}" class="btn-ready" onclick="window.toggleStatus('${sid}', '${s.name}', 'ret_drop', this.dataset.done === 'true')">PM Drop</button>
                         </div>
                     </div>`;
                 onSnapshot(doc(db, "history", `${sid}_${today}`), (hSnap) => {
@@ -350,23 +297,29 @@
             target.innerHTML = "";
             snap.forEach(docSnap => {
                 const s = docSnap.data();
-                const d = driverMap[s.driverUid] || { fullName: "Awaiting Assignment", assignedCar: "N/A", phone: "N/A" };
+                const d = driverMap[s.driverUid] || { fullName: "Not Assigned", phone: "-" };
                 target.innerHTML += `
-                    <div class="card" style="text-align:center; border-top:10px solid var(--parent)">
-                        <h2>${s.name}</h2>
-                        <div style="background:#fff7ed; border:2px dashed var(--parent); padding:20px; margin:15px 0; border-radius:15px;">
-                            <p style="margin:0; font-size:0.8rem; font-weight:bold; color:var(--parent)">LIVE STATUS</p>
-                            <h1 style="margin:5px 0;">${s.status}</h1>
+                    <div class="card" style="text-align:center;">
+                        <h3>${s.name}</h3>
+                        <div style="background:#fff7ed; border:2px dashed var(--parent); padding:15px; border-radius:12px;">
+                            <p style="font-size:0.7rem; color:var(--parent); font-weight:bold;">LIVE STATUS</p>
+                            <h2 style="margin:0;">${s.status}</h2>
                         </div>
-                        <div style="text-align:left; background:#f8fafc; padding:15px; border-radius:10px; border-left:5px solid var(--admin);">
-                            <p><strong>Driver:</strong> ${d.fullName}</p>
-                            <p><strong>Phone:</strong> ${d.phone}</p>
-                            <p><strong>Vehicle:</strong> ${d.assignedCar}</p>
+                        <div style="text-align:left; font-size:0.8rem; margin-top:15px; border-top:1px solid #eee; padding-top:10px;">
+                            <p><b>Pickup:</b> ${s.pickupLoc || s.address}</p>
+                            <p><b>Dropoff:</b> ${s.dropoffLoc || s.address}</p>
+                            <hr>
+                            <p><b>Driver:</b> ${d.fullName} (${d.phone})</p>
                         </div>
                     </div>`;
             });
         });
     }
+
+    window.handleLogout = () => signOut(auth);
+    window.reassignDriver = async (sid, newUid) => await updateDoc(doc(db, "students", sid), { driverUid: newUid });
+    window.delDoc = async (c, id) => { if(confirm("Delete?")) await deleteDoc(doc(db, c, id)); };
+
 </script>
 </body>
 </html>
