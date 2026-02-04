@@ -1,11 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RS Transport Solution - Enterprise (MVP)</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RS Transport Solution - Enterprise (MVP Option A)</title>
   <style>
-    :root { --admin:#1a73e8; --driver:#28a745; --parent:#ff9800; --bg:#f4f7f9; --danger:#dc3545; --dark:#1e293b; --route:#6366f1; --logs:#64748b; }
+    :root {
+      --admin:#1a73e8; --driver:#28a745; --parent:#ff9800;
+      --bg:#f4f7f9; --danger:#dc3545; --dark:#1e293b;
+      --route:#6366f1; --logs:#64748b; --done:#94a3b8;
+    }
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); margin:0; min-height:100vh; color:#333; }
     .header-bar { background:var(--dark); color:white; padding:12px 20px; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:1000; flex-wrap:wrap; }
     .header-titles h1 { margin:0; font-size:1rem; }
@@ -26,8 +30,9 @@
     .btn-gray { background:#64748b; color:white; }
     .btn-route { background:var(--route); color:white; }
     .btn-outline { background:#fff; border:1px solid #cbd5e1; color:#334155; }
-    table { width:100%; border-collapse:collapse; font-size:0.8rem; min-width:950px; }
-    th, td { text-align:left; padding:12px; border-bottom:1px solid #eee; }
+    .btn-done { background:var(--done) !important; color:white !important; }
+    table { width:100%; border-collapse:collapse; font-size:0.8rem; min-width:1050px; }
+    th, td { text-align:left; padding:12px; border-bottom:1px solid #eee; vertical-align:top; }
     th { background:#f8fafc; color:#64748b; position:sticky; top:0; z-index:2; }
     .mini { font-size:0.75rem; color:#64748b; }
     .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
@@ -36,7 +41,7 @@
     @media (max-width:600px){
       .header-bar { flex-direction:column; text-align:center; }
       .form-grid { grid-template-columns:1fr; }
-      table { min-width:880px; }
+      table { min-width:980px; }
     }
   </style>
 </head>
@@ -74,7 +79,11 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
   import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-  import { getFirestore, collection, query, where, getDocs, onSnapshot, doc, updateDoc, setDoc, deleteDoc, addDoc, serverTimestamp, orderBy, limit, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+  import {
+    getFirestore, collection, query, where, getDocs, onSnapshot,
+    doc, updateDoc, setDoc, deleteDoc, addDoc, serverTimestamp,
+    orderBy, limit, writeBatch
+  } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCS163x5b5-MJXxJGwbjE0IlO7R58CkJMg",
@@ -93,11 +102,36 @@
   let routesList = [];
   let driverMap = {};
 
-  // ---------- HELPERS ----------
+  // ----------------- HELPERS -----------------
   const todayISO = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
-  const timeHM = () => new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+  const timeHMNow = () => new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
   const defaultSession = () => (new Date().getHours() < 12 ? "AM" : "PM");
   const tripIdFor = (routeId, dateStr, session) => `${routeId}_${dateStr}_${session}`;
+
+  const hmToMinutes = (hm) => {
+    if (!hm || !hm.includes(":")) return null;
+    const [h, m] = hm.split(":").map(x => parseInt(x, 10));
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    return h * 60 + m;
+  };
+
+  const minutesToHM = (mins) => {
+    mins = ((mins % (24*60)) + (24*60)) % (24*60);
+    const h = String(Math.floor(mins / 60)).padStart(2, "0");
+    const m = String(mins % 60).padStart(2, "0");
+    return `${h}:${m}`;
+  };
+
+  const nowHM = () => {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+  };
+
+  function escapeHtml(str){
+    return String(str)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+  }
 
   function portalLabel(role){
     const label = document.getElementById('portalLabel');
@@ -105,12 +139,16 @@
     label.className = `portal-tag bg-${role}`;
   }
 
-  // Create/ensure trip doc
-  async function ensureTrip(routeId, driverUid, session){
+  // Button IDs for done state
+  const btnId = (sid, field) => `btn_${sid}_${field}`;
+
+  // ----------------- TRIP + EVENTS -----------------
+  async function ensureTrip(routeId, driverUid, session, startHM) {
     const tid = tripIdFor(routeId, todayISO(), session);
     await setDoc(doc(db, "trips", tid), {
       routeId, driverUid, date: todayISO(), session,
       status: "LIVE",
+      tripStartHM: startHM || nowHM(),
       startedAt: serverTimestamp()
     }, { merge:true });
 
@@ -123,7 +161,7 @@
     return tid;
   }
 
-  async function endTrip(routeId, driverUid, session){
+  async function endTrip(routeId, driverUid, session) {
     const tid = tripIdFor(routeId, todayISO(), session);
     await setDoc(doc(db, "trips", tid), {
       status: "ENDED",
@@ -139,65 +177,92 @@
     return tid;
   }
 
-  // Write an event for a student (Option A notification feed)
-  async function addStudentEvent(routeId, driverUid, session, studentId, studentName, type, extra = {}){
+  async function addStudentEvent(routeId, driverUid, session, studentId, studentName, type, extra = {}) {
     const tid = tripIdFor(routeId, todayISO(), session);
-
     await addDoc(collection(db, "trips", tid, "events"), {
-      type,
-      studentId,
-      studentName,
+      type, studentId, studentName,
       timestamp: serverTimestamp(),
       routeId, driverUid, session,
       ...extra
     });
   }
 
-  // ---------- AUTH ----------
+  // ----------------- ETA COMPUTE -----------------
+  function computeEtaForStudentFromDocs(session, studentId, tripStartHM, docs) {
+    const base = hmToMinutes(tripStartHM);
+    if (base === null) return "--:--";
+
+    const field = (session === "AM") ? "minsAM" : "minsPM";
+
+    const sorted = docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a,b) => {
+        const ao = a.stopOrder ?? 9999;
+        const bo = b.stopOrder ?? 9999;
+        if (ao !== bo) return ao - bo;
+        return String(a.name||"").localeCompare(String(b.name||""));
+      });
+
+    let sum = 0;
+    for (const st of sorted) {
+      const raw = st[field];
+      const mins = Number.isFinite(raw) ? raw : parseInt(raw ?? "0", 10);
+      sum += Number.isFinite(mins) ? mins : 0;
+      if (st.id === studentId) return minutesToHM(base + sum);
+    }
+    return "--:--";
+  }
+
+  // ----------------- AUTH -----------------
   document.getElementById('loginForm').onsubmit = async (e) => {
     e.preventDefault();
-    try { await signInWithEmailAndPassword(auth, email.value, password.value); }
-    catch { alert("Login Failed"); }
+    try {
+      await signInWithEmailAndPassword(auth, email.value, password.value);
+    } catch {
+      alert("Login Failed");
+    }
   };
 
   onAuthStateChanged(auth, async (user) => {
-    if (user) {
-      const q = query(collection(db, "users"), where("uid", "==", user.uid));
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        const userData = snap.docs[0].data();
-        document.getElementById('userDisplayName').innerText = userData.fullName;
-        portalLabel(userData.role);
-        document.getElementById('userInfo').classList.remove('hidden');
-
-        // Load routes + drivers, then render dashboard
-        onSnapshot(collection(db, "routes"), (rSnap) => {
-          routesList = rSnap.docs.map(d => ({ id:d.id, ...d.data() }));
-
-          onSnapshot(query(collection(db, "users"), where("role", "==", "driver")), (dSnap) => {
-            driverMap = {};
-            dSnap.forEach(d => { driverMap[d.data().uid] = d.data(); });
-            initDashboard(userData);
-          });
-        });
-      }
-    } else {
+    if (!user) {
       document.getElementById('loginSection').classList.remove('hidden');
       document.getElementById('dashboardSection').classList.add('hidden');
       document.getElementById('userInfo').classList.add('hidden');
+      return;
     }
+
+    const q = query(collection(db, "users"), where("uid", "==", user.uid));
+    const snap = await getDocs(q);
+    if (snap.empty) return alert("User profile not found in users collection.");
+
+    const userData = snap.docs[0].data();
+    document.getElementById('userDisplayName').innerText = userData.fullName;
+    portalLabel(userData.role);
+    document.getElementById('userInfo').classList.remove('hidden');
+
+    // load routes + drivers then init dashboard
+    onSnapshot(collection(db, "routes"), (rSnap) => {
+      routesList = rSnap.docs.map(d => ({ id:d.id, ...d.data() }));
+
+      onSnapshot(query(collection(db, "users"), where("role", "==", "driver")), (dSnap) => {
+        driverMap = {};
+        dSnap.forEach(d => { driverMap[d.data().uid] = d.data(); });
+        initDashboard(userData);
+      });
+    });
   });
 
   function initDashboard(user) {
     document.getElementById('loginSection').classList.add('hidden');
     document.getElementById('dashboardSection').classList.remove('hidden');
     const target = document.getElementById('dynamicContent');
+
     if (user.role === 'admin') renderAdmin(target);
     else if (user.role === 'driver') renderDriver(target, user.uid);
     else renderParent(target, user.uid);
   }
 
-  // ---------- ADMIN ----------
+  // ----------------- ADMIN VIEW -----------------
   function renderAdmin(target) {
     target.innerHTML = `
       <button class="btn-reset" onclick="window.resetAllStudents()">🔄 RESET SYSTEM FOR NEW DAY</button>
@@ -215,8 +280,9 @@
       </div>
 
       <div class="card" style="border-top:4px solid var(--route)">
-        <h4>Route Management (AM/PM Drivers Optional)</h4>
-        <div class="scroll-box">
+        <h4>Route Management (AM/PM Drivers)</h4>
+        <div class="mini">Assign different drivers for AM and PM. Route order is controlled from the Student Database using Stop #.</div>
+        <div class="scroll-box" style="margin-top:10px;">
           <table>
             <thead><tr><th>Route</th><th>Driver (AM)</th><th>Driver (PM)</th><th>Action</th></tr></thead>
             <tbody id="rtTableBody"></tbody>
@@ -227,10 +293,6 @@
           <input type="text" id="rtName" placeholder="New Route Name" required>
           <button type="submit" class="btn-route">Create Route</button>
         </form>
-
-        <div class="mini" style="margin-top:8px;">
-          Note: If AM/PM drivers are empty, the system will fall back to the single driverUid field (for backward compatibility).
-        </div>
       </div>
 
       <div class="card" style="border-top:4px solid var(--driver)">
@@ -247,28 +309,40 @@
 
       <div class="card" style="border-top:4px solid var(--admin)">
         <h4>Student Enrollment</h4>
-        <form id="regStForm" class="form-grid">
+        <div class="mini">Enroll student and assign to route. Then set Stop #, AM min, PM min in Student Database.</div>
+        <form id="regStForm" class="form-grid" style="margin-top:10px;">
           <input type="text" id="sName" placeholder="Student Name" required>
           <select id="sGender"><option value="Male">Male</option><option value="Female">Female</option></select>
           <input type="date" id="sDob" required>
+
           <input type="text" id="sFather" placeholder="Father's Name">
           <input type="text" id="sFPhone" placeholder="Father's Phone">
           <input type="text" id="sMother" placeholder="Mother's Name">
           <input type="text" id="sMPhone" placeholder="Mother's Phone">
           <select id="sPrimary"><option value="Father">Primary: Father</option><option value="Mother">Primary: Mother</option></select>
+
           <input type="email" id="sPEmail" placeholder="Parent Login Email" required>
           <input type="password" id="sPPass" placeholder="Parent Password" required>
+
           <input type="text" id="sAddr" placeholder="Home Address" class="full-width">
           <select id="sRouteSelect" class="full-width"><option value="">Select Route...</option></select>
+
           <button type="submit" style="background:var(--admin); color:white;" class="full-width">Enroll Student</button>
         </form>
       </div>
 
       <div class="card">
-        <h4>Student Database</h4>
-        <div class="scroll-box">
+        <h4>Student Database (Manual Route Order + Timing)</h4>
+        <div class="mini">Stop # = pickup sequence (1,2,3...). AM/PM min = minutes from previous stop.</div>
+        <div class="scroll-box" style="margin-top:10px;">
           <table>
-            <thead><tr><th>Student</th><th>Route</th><th>Pickup</th><th>Dropoff</th><th>Action</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Student</th><th>Route</th><th>Pickup</th><th>Dropoff</th>
+                <th>Stop #</th><th>AM min</th><th>PM min</th>
+                <th>Action</th>
+              </tr>
+            </thead>
             <tbody id="stTableBody"></tbody>
           </table>
         </div>
@@ -293,7 +367,7 @@
       });
     });
 
-    // Route table
+    // Route table + route select
     const rtBody = document.getElementById('rtTableBody');
     const rtSelect = document.getElementById('sRouteSelect');
     rtBody.innerHTML = "";
@@ -302,19 +376,12 @@
     routesList.forEach(r => {
       rtSelect.innerHTML += `<option value="${r.id}">${r.name}</option>`;
 
-      // Drivers dropdown options
-      let drOptions = `<option value="">Unassigned</option>`;
-      Object.keys(driverMap).forEach(uid => { drOptions += `<option value="${uid}">${driverMap[uid].fullName}</option>`; });
-
-      const amVal = r.driverUidAM || "";
-      const pmVal = r.driverUidPM || "";
-
-      // rebuild with selected values
       let drOptionsAM = `<option value="">Unassigned</option>`;
       let drOptionsPM = `<option value="">Unassigned</option>`;
+
       Object.keys(driverMap).forEach(uid => {
-        drOptionsAM += `<option value="${uid}" ${amVal === uid ? "selected" : ""}>${driverMap[uid].fullName}</option>`;
-        drOptionsPM += `<option value="${uid}" ${pmVal === uid ? "selected" : ""}>${driverMap[uid].fullName}</option>`;
+        drOptionsAM += `<option value="${uid}" ${(r.driverUidAM||"") === uid ? "selected" : ""}>${driverMap[uid].fullName}</option>`;
+        drOptionsPM += `<option value="${uid}" ${(r.driverUidPM||"") === uid ? "selected" : ""}>${driverMap[uid].fullName}</option>`;
       });
 
       rtBody.innerHTML += `
@@ -327,11 +394,12 @@
       `;
     });
 
-    // Students table
+    // Student database
     onSnapshot(collection(db, "students"), (snap) => {
       const stb = document.getElementById('stTableBody');
       if (!stb) return;
       stb.innerHTML = "";
+
       snap.forEach(docSnap => {
         const s = docSnap.data();
         const sid = docSnap.id;
@@ -342,22 +410,34 @@
         });
 
         stb.innerHTML += `<tr>
-          <td><b>${s.name}</b> ${s.status === 'LEAVE' ? '<span class="portal-tag bg-danger">LEAVE</span>' : ''}</td>
+          <td>
+            <b>${escapeHtml(s.name || "")}</b>
+            ${s.status === 'LEAVE' ? '<span class="portal-tag bg-danger" style="margin-left:8px;">LEAVE</span>' : ''}
+          </td>
           <td><select onchange="window.setStudentRoute('${sid}', this.value)">${rtOptions}</select></td>
-          <td>${s.pickupLoc || s.address || "-"}</td>
-          <td>${s.dropoffLoc || s.address || "-"}</td>
+          <td>${escapeHtml(s.pickupLoc || s.address || "-")}</td>
+          <td>${escapeHtml(s.dropoffLoc || s.address || "-")}</td>
+
+          <td><input type="number" min="1" step="1" value="${s.stopOrder ?? ""}"
+            onchange="window.setStudentFieldNumber('${sid}','stopOrder', this.value)" /></td>
+
+          <td><input type="number" min="0" step="1" value="${s.minsAM ?? ""}"
+            onchange="window.setStudentFieldNumber('${sid}','minsAM', this.value)" /></td>
+
+          <td><input type="number" min="0" step="1" value="${s.minsPM ?? ""}"
+            onchange="window.setStudentFieldNumber('${sid}','minsPM', this.value)" /></td>
+
           <td><button style="color:var(--danger)" onclick="window.delDoc('students','${sid}')">Delete</button></td>
         </tr>`;
       });
     });
 
-    // Register route
+    // Create route
     document.getElementById('regRouteForm').onsubmit = async (e) => {
       e.preventDefault();
       await addDoc(collection(db, "routes"), {
         name: rtName.value,
-        driverUid: "",      // old field (kept)
-        driverUidAM: "",    // new fields (optional)
+        driverUidAM: "",
         driverUidPM: ""
       });
       e.target.reset();
@@ -384,7 +464,7 @@
       }
     };
 
-    // Student enroll (keeps your existing schema)
+    // Enroll student (keeps your old fields)
     document.getElementById('regStForm').onsubmit = async (e) => {
       e.preventDefault();
       try {
@@ -400,7 +480,6 @@
           name: sName.value,
           gender: sGender.value,
           dob: sDob.value,
-
           father: sFather.value, fPhone: sFPhone.value,
           mother: sMother.value, mPhone: sMPhone.value,
           primary: sPrimary.value,
@@ -411,7 +490,12 @@
           dropoffLoc: sAddr.value,
 
           routeId: sRouteSelect.value,
-          status: "AWAITING"
+          status: "AWAITING",
+
+          // NEW: order & timing (optional at enrollment; admin sets later)
+          stopOrder: null,
+          minsAM: null,
+          minsPM: null
         });
 
         await signOut(secAuth);
@@ -423,22 +507,24 @@
     };
   }
 
-  // ---------- DRIVER ----------
+  // ----------------- DRIVER VIEW -----------------
   function renderDriver(target, uid) {
-    // Find routes where this driver is assigned to AM/PM
-    // fallback to old driverUid if AM/PM not set
-    const myRoutes = routesList.filter(r =>
-      r.driverUidAM === uid || r.driverUidPM === uid || r.driverUid === uid
-    );
+    // Build assigned list: route + allowed sessions
+    const assigned = routesList
+      .map(r => {
+        const am = (r.driverUidAM || "") === uid;
+        const pm = (r.driverUidPM || "") === uid;
+        const sessions = [];
+        if (am) sessions.push("AM");
+        if (pm) sessions.push("PM");
+        return sessions.length ? { route:r, sessions } : null;
+      })
+      .filter(Boolean);
 
-    if (myRoutes.length === 0) {
+    if (assigned.length === 0) {
       target.innerHTML = `<div class="card"><h4>No Route Assigned</h4></div>`;
       return;
     }
-
-    // If multiple routes, let driver pick route
-    const defaultRoute = myRoutes[0];
-    const sess = defaultSession();
 
     target.innerHTML = `
       <div class="card" style="border-top:4px solid var(--driver)">
@@ -447,14 +533,13 @@
             <h3 style="margin:0;">Driver Mode</h3>
             <div class="mini">📅 ${todayISO()}</div>
           </div>
+
           <div class="row">
             <select id="drvRoute">
-              ${myRoutes.map(r => `<option value="${r.id}">${r.name}</option>`).join("")}
+              ${assigned.map(x => `<option value="${x.route.id}">${escapeHtml(x.route.name)}</option>`).join("")}
             </select>
-            <select id="drvSession" style="max-width:140px;">
-              <option value="AM" ${sess==="AM" ? "selected":""}>AM Trip</option>
-              <option value="PM" ${sess==="PM" ? "selected":""}>PM Trip</option>
-            </select>
+            <select id="drvSession" style="max-width:140px;"></select>
+
             <button class="btn-ready" onclick="window.startTripNow('${uid}')">🚐 Bus Started</button>
             <button class="btn-gray" onclick="window.endTripNow('${uid}')">🏁 End</button>
           </div>
@@ -467,84 +552,126 @@
         </div>
 
         <div class="card" style="margin-top:12px; background:#f8fafc; border:1px solid #e2e8f0;">
-          <b>🕒 Manual ETA (minutes)</b>
-          <div class="mini">Set ETA minutes for each student (parents will see it). This is your simple first-launch ETA.</div>
+          <b>🗺️ Map button</b>
+          <div class="mini">Tap Map to open Google Maps directions to the student's pickup location.</div>
         </div>
 
         <div id="dList"></div>
       </div>
     `;
 
-    // render list for selected route
-    const refreshDriverView = () => {
-      const routeId = document.getElementById('drvRoute').value;
-      const route = routesList.find(r => r.id === routeId);
-      if (!route) return;
+    const setSessionOptions = () => {
+      const rid = document.getElementById("drvRoute").value;
+      const item = assigned.find(x => x.route.id === rid);
+      const sSel = document.getElementById("drvSession");
+      sSel.innerHTML = item.sessions.map(s => `<option value="${s}">${s} Trip</option>`).join("");
 
-      const session = document.getElementById('drvSession').value;
-      const tid = tripIdFor(routeId, todayISO(), session);
+      const preferred = item.sessions.includes(defaultSession()) ? defaultSession() : item.sessions[0];
+      sSel.value = preferred;
+    };
 
-      document.getElementById('tripBadge').innerText = tid;
-
-      // watch trip status
-      onSnapshot(doc(db, "trips", tid), (snap) => {
-        const el = document.getElementById('tripState');
-        if (!el) return;
-        if (!snap.exists()) el.innerText = "(not started)";
-        else el.innerText = `(${snap.data().status || "LIVE"})`;
-      });
-
-      // students in this route
-      onSnapshot(query(collection(db, "students"), where("routeId", "==", routeId)), (snap) => {
-        const list = document.getElementById('dList');
-        list.innerHTML = "";
-
-        snap.forEach(docSnap => {
-          const s = docSnap.data();
-          const sid = docSnap.id;
-          const isLeave = s.status === "LEAVE";
-
-          list.innerHTML += `
-            <div class="card" style="border-left:5px solid ${isLeave ? 'var(--danger)' : 'var(--driver)'}">
-              <div class="row" style="justify-content:space-between;">
-                <div>
-                  <strong>${s.name}</strong>
-                  <span class="portal-tag ${isLeave ? 'bg-danger' : 'bg-driver'}">${isLeave ? "LEAVE" : "ACTIVE"}</span>
-                  <div class="mini">📍 ${s.pickupLoc || s.address || "-"}</div>
-                </div>
-                <div style="min-width:220px;">
-                  <label class="mini"><b>ETA (min)</b> for parent:</label>
-                  <input type="number" min="0" step="1" placeholder="e.g. 8"
-                    value="${s.etaMinutes ?? ""}"
-                    ${isLeave ? "disabled" : ""}
-                    onchange="window.setStudentEta('${sid}', this.value)"
-                  />
-                </div>
-              </div>
-
-              ${isLeave ? '<p class="danger" style="margin-top:10px;">On Leave Today</p>' : `
-              <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px;">
-                <button class="btn-ready" onclick="window.markEvent('${routeId}','${uid}','${sid}','${escapeHtml(s.name)}','PICKED_AM','morn_pick')">AM Picked</button>
-                <button class="btn-ready" onclick="window.markEvent('${routeId}','${uid}','${sid}','${escapeHtml(s.name)}','DROPPED_SCHOOL_AM','morn_drop')">AM Dropped</button>
-                <button class="btn-ready" onclick="window.markEvent('${routeId}','${uid}','${sid}','${escapeHtml(s.name)}','PICKED_SCHOOL_PM','ret_pick')">PM Picked</button>
-                <button class="btn-ready" onclick="window.markEvent('${routeId}','${uid}','${sid}','${escapeHtml(s.name)}','DROPPED_PM','ret_drop')">PM Dropped</button>
-              </div>`}
-            </div>
-          `;
+    const attachProgressWatcher = (sid) => {
+      const hRef = doc(db, "history", `${sid}_${todayISO()}`);
+      onSnapshot(hRef, (snap) => {
+        if (!snap.exists()) return;
+        const h = snap.data();
+        ["morn_pick","morn_drop","ret_pick","ret_drop"].forEach(f => {
+          if (h[f]) {
+            const b = document.getElementById(btnId(sid, f));
+            if (b) { b.classList.add("btn-done"); b.disabled = true; b.innerText = "DONE"; }
+          }
         });
       });
     };
 
-    document.getElementById('drvRoute').onchange = refreshDriverView;
-    document.getElementById('drvSession').onchange = refreshDriverView;
+    const openMapTo = (destination) => {
+      if (!destination) return alert("No destination found");
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}&travelmode=driving`;
+      window.open(url, "_blank");
+    };
+    window.openMapTo = openMapTo;
+
+    const refreshDriverView = () => {
+      const routeId = document.getElementById('drvRoute').value;
+      const session = document.getElementById('drvSession').value;
+
+      const tid = tripIdFor(routeId, todayISO(), session);
+      document.getElementById('tripBadge').innerText = tid;
+
+      onSnapshot(doc(db, "trips", tid), (snap) => {
+        const el = document.getElementById('tripState');
+        if (!el) return;
+        el.innerText = snap.exists() ? `(${snap.data().status || "LIVE"})` : "(not started)";
+      });
+
+      onSnapshot(query(collection(db, "students"), where("routeId", "==", routeId)), (snap) => {
+        const list = document.getElementById('dList');
+        list.innerHTML = "";
+
+        // show sorted by stopOrder
+        const docs = snap.docs
+          .map(d => ({ id:d.id, ...d.data() }))
+          .sort((a,b) => {
+            const ao = a.stopOrder ?? 9999;
+            const bo = b.stopOrder ?? 9999;
+            if (ao !== bo) return ao - bo;
+            return String(a.name||"").localeCompare(String(b.name||""));
+          });
+
+        docs.forEach(st => {
+          const sid = st.id;
+          const isLeave = st.status === "LEAVE";
+          const pickup = st.pickupLoc || st.address || "";
+          const dropoff = st.dropoffLoc || st.address || "";
+
+          list.innerHTML += `
+            <div class="card" style="border-left:5px solid ${isLeave ? 'var(--danger)' : 'var(--driver)'}">
+              <div class="row" style="justify-content:space-between; align-items:flex-start;">
+                <div>
+                  <strong>${escapeHtml(st.name || "")}</strong>
+                  ${isLeave ? '<span class="portal-tag bg-danger" style="margin-left:8px;">LEAVE</span>' : '<span class="portal-tag bg-driver" style="margin-left:8px;">ACTIVE</span>'}
+                  <div class="mini"># Stop: <b>${st.stopOrder ?? "-"}</b> • AM min: <b>${st.minsAM ?? "-"}</b> • PM min: <b>${st.minsPM ?? "-"}</b></div>
+                  <div class="mini">📍 Pick: ${escapeHtml(pickup)}</div>
+                  <div class="mini">🏁 Drop: ${escapeHtml(dropoff)}</div>
+                </div>
+
+                <div class="row">
+                  <button class="btn-outline" onclick="window.openMapTo('${escapeHtml(pickup)}')">🗺️ Map</button>
+                </div>
+              </div>
+
+              ${isLeave ? '<div class="danger" style="margin-top:10px;">On Leave Today</div>' : `
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px;">
+                  <button id="${btnId(sid,'morn_pick')}" class="btn-ready"
+                    onclick="window.markEvent('${routeId}','${uid}','${session}','${sid}','${escapeHtml(st.name)}','PICKED_AM','morn_pick')">AM Picked</button>
+
+                  <button id="${btnId(sid,'morn_drop')}" class="btn-ready"
+                    onclick="window.markEvent('${routeId}','${uid}','${session}','${sid}','${escapeHtml(st.name)}','DROPPED_SCHOOL_AM','morn_drop')">AM Dropped</button>
+
+                  <button id="${btnId(sid,'ret_pick')}" class="btn-ready"
+                    onclick="window.markEvent('${routeId}','${uid}','${session}','${sid}','${escapeHtml(st.name)}','PICKED_SCHOOL_PM','ret_pick')">PM Picked</button>
+
+                  <button id="${btnId(sid,'ret_drop')}" class="btn-ready"
+                    onclick="window.markEvent('${routeId}','${uid}','${session}','${sid}','${escapeHtml(st.name)}','DROPPED_PM','ret_drop')">PM Dropped</button>
+                </div>
+              `}
+            </div>
+          `;
+        });
+
+        // attach watchers for button state
+        docs.forEach(st => attachProgressWatcher(st.id));
+      });
+    };
+
+    document.getElementById("drvRoute").onchange = () => { setSessionOptions(); refreshDriverView(); };
+    document.getElementById("drvSession").onchange = refreshDriverView;
+
+    setSessionOptions();
     refreshDriverView();
   }
 
-  function escapeHtml(str){
-    return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
-  }
-
-  // ---------- PARENT ----------
+  // ----------------- PARENT VIEW -----------------
   function renderParent(target, uid) {
     onSnapshot(query(collection(db, "students"), where("parentUid", "==", uid)), (snap) => {
       target.innerHTML = "";
@@ -556,35 +683,40 @@
       snap.forEach(docSnap => {
         const s = docSnap.data();
         const sid = docSnap.id;
-
         const route = routesList.find(r => r.id === s.routeId);
-        const session = defaultSession();
-        const tripId = route ? tripIdFor(route.id, todayISO(), session) : null;
 
-        const driverUid = route ? (route.driverUidAM || route.driverUidPM || route.driverUid || "") : "";
-        const d = driverUid ? (driverMap[driverUid] || { fullName:"Unassigned", phone:"-", assignedCar:"-" }) : { fullName:"Unassigned", phone:"-", assignedCar:"-" };
+        // Parent can switch AM/PM manually to avoid confusion
+        const defaultSess = defaultSession();
 
         target.innerHTML += `
           <div class="card" style="text-align:center; border-top:4px solid var(--parent);">
             <div class="row" style="justify-content:space-between;">
-              <h2 style="margin:0;">${s.name}</h2>
-              <div class="chip">📅 ${todayISO()} (${session})</div>
+              <h2 style="margin:0;">${escapeHtml(s.name || "")}</h2>
+              <div class="row">
+                <div class="chip">📅 ${todayISO()}</div>
+                <select id="pSess_${sid}" style="max-width:140px;">
+                  <option value="AM" ${defaultSess==="AM"?"selected":""}>AM</option>
+                  <option value="PM" ${defaultSess==="PM"?"selected":""}>PM</option>
+                </select>
+              </div>
             </div>
 
             <div style="background:#fff7ed; padding:15px; border-radius:12px; border:2px dashed ${s.status === 'LEAVE' ? 'var(--danger)' : 'var(--parent)'}; margin-top:12px;">
               <small>LIVE STATUS</small>
-              <h3 style="margin:6px 0; color:${s.status === 'LEAVE' ? 'var(--danger)' : 'inherit'}">${s.status}</h3>
+              <h3 style="margin:6px 0; color:${s.status === 'LEAVE' ? 'var(--danger)' : 'inherit'}">${escapeHtml(s.status || "")}</h3>
+
               <div class="row" style="justify-content:center; margin-top:10px;">
-                <div class="chip">🕒 ETA: <b id="eta_${sid}">${(s.etaMinutes ?? "--")} ${s.etaMinutes != null ? "min" : ""}</b></div>
-                <div class="chip">🚐 Trip: <b id="tripState_${sid}">--</b></div>
+                <div class="chip">🕒 ETA: <b id="eta_${sid}">--:--</b></div>
+                <div class="chip">🚐 Trip: <b id="tripState_${sid}">Not started</b></div>
               </div>
-              <div class="mini">Notifications are shown below as a live feed (no push).</div>
+
+              <div class="mini">ETA is calculated from Trip Start Time + minutes between stops.</div>
             </div>
 
             <div style="text-align:left; margin-top:15px; font-size:0.85rem;">
-              <p><b>Driver:</b> ${d.fullName} (${d.phone})</p>
-              <p><b>Car/Vehicle:</b> ${d.assignedCar}</p>
-              <p><b>Route:</b> ${route ? route.name : 'N/A'}</p>
+              <p><b>Route:</b> ${route ? escapeHtml(route.name) : 'N/A'}</p>
+              <p><b>Pickup:</b> ${escapeHtml(s.pickupLoc || s.address || "-")}</p>
+              <p><b>Dropoff:</b> ${escapeHtml(s.dropoffLoc || s.address || "-")}</p>
             </div>
 
             <div class="card" style="padding:12px; text-align:left; border:1px solid #e2e8f0; background:#f8fafc;">
@@ -597,30 +729,43 @@
           </div>
         `;
 
-        // live update ETA from student doc
-        onSnapshot(doc(db, "students", sid), (stSnap) => {
-          if(!stSnap.exists()) return;
-          const st = stSnap.data();
-          const etaEl = document.getElementById(`eta_${sid}`);
-          if(etaEl) etaEl.innerText = (st.etaMinutes != null && st.etaMinutes !== "") ? `${st.etaMinutes} min` : "--";
-        });
+        const bindParentTrip = (session) => {
+          if (!route) return;
 
-        // trip status + feed
-        if (tripId) {
-          // trip state
+          const tripId = tripIdFor(route.id, todayISO(), session);
+
+          // trip state + start time for ETA
           onSnapshot(doc(db, "trips", tripId), (tSnap) => {
-            const el = document.getElementById(`tripState_${sid}`);
-            if (!el) return;
-            if (!tSnap.exists()) el.innerText = "Not started";
-            else el.innerText = tSnap.data().status || "LIVE";
+            const stateEl = document.getElementById(`tripState_${sid}`);
+            const etaEl = document.getElementById(`eta_${sid}`);
+            if (!stateEl || !etaEl) return;
+
+            if (!tSnap.exists()) {
+              stateEl.innerText = "Not started";
+              etaEl.innerText = "--:--";
+              return;
+            }
+
+            const trip = tSnap.data();
+            stateEl.innerText = trip.status || "LIVE";
+
+            const startHM = trip.tripStartHM;
+            if (!startHM) { etaEl.innerText = "--:--"; return; }
+
+            // live compute ETA from students in this route
+            onSnapshot(query(collection(db, "students"), where("routeId", "==", route.id)), (stSnap) => {
+              const eta = computeEtaForStudentFromDocs(session, sid, startHM, stSnap.docs);
+              const e = document.getElementById(`eta_${sid}`);
+              if (e) e.innerText = eta;
+            });
           });
 
-          // feed: show latest 15 events, highlight events for this student
+          // feed events
           onSnapshot(query(collection(db, "trips", tripId, "events"), orderBy("timestamp", "desc"), limit(15)), (eSnap) => {
             const box = document.getElementById(`feed_${sid}`);
             if (!box) return;
-            box.innerHTML = "";
 
+            box.innerHTML = "";
             if (eSnap.empty) {
               box.innerHTML = `<div class="mini">No updates yet.</div>`;
               return;
@@ -630,30 +775,35 @@
               const ev = evDoc.data();
               const ts = ev.timestamp?.toDate ? ev.timestamp.toDate().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : "--:--";
               const mine = ev.studentId === sid;
-
               box.innerHTML += `
                 <div class="chip" style="margin:6px 0; background:${mine ? '#fff7ed' : '#ffffff'};">
-                  <b>${ev.type || "EVENT"}</b>
+                  <b>${escapeHtml(ev.type || "EVENT")}</b>
                   <span class="mini">${ts}</span>
                   ${mine ? '<span class="portal-tag bg-parent">YOUR CHILD</span>' : ''}
                 </div>
               `;
             });
           });
-        }
+        };
+
+        // bind initial + on session change
+        const sel = document.getElementById(`pSess_${sid}`);
+        bindParentTrip(sel.value);
+        sel.onchange = () => bindParentTrip(sel.value);
       });
     });
   }
 
-  // ---------- GLOBAL ACTIONS ----------
+  // ----------------- GLOBAL ACTIONS -----------------
+  window.handleLogout = () => signOut(auth);
+
   window.resetAllStudents = async () => {
-    if (confirm("This will clear all statuses and leave requests for all students. Proceed?")) {
-      const batch = writeBatch(db);
-      const snap = await getDocs(collection(db, "students"));
-      snap.forEach(d => batch.update(d.ref, { status: "AWAITING" }));
-      await batch.commit();
-      alert("System reset complete!");
-    }
+    if (!confirm("This will clear all statuses and leave requests for all students. Proceed?")) return;
+    const batch = writeBatch(db);
+    const snap = await getDocs(collection(db, "students"));
+    snap.forEach(d => batch.update(d.ref, { status: "AWAITING" }));
+    await batch.commit();
+    alert("System reset complete!");
   };
 
   window.requestLeave = async (sid) => {
@@ -662,14 +812,33 @@
     }
   };
 
-  // Start trip (Bus Started) - Option A notification feed
+  window.setRouteDriver = async (routeId, session, driverUid) => {
+    const field = session === "AM" ? "driverUidAM" : "driverUidPM";
+    await updateDoc(doc(db, "routes", routeId), { [field]: driverUid });
+  };
+
+  window.setStudentRoute = async (sid, routeId) => {
+    await updateDoc(doc(db, "students", sid), { routeId });
+  };
+
+  window.setStudentFieldNumber = async (sid, field, val) => {
+    const v = val === "" ? null : parseInt(val, 10);
+    if (v != null && (!Number.isFinite(v) || v < 0)) return alert("Invalid number");
+    await updateDoc(doc(db, "students", sid), { [field]: v });
+  };
+
   window.startTripNow = async (driverUid) => {
     const routeId = document.getElementById('drvRoute')?.value;
     const session = document.getElementById('drvSession')?.value || defaultSession();
     if (!routeId) return alert("No route selected");
+
+    const startHM = prompt("Trip start time (HH:MM)", nowHM());
+    if (startHM === null) return;
+    if (hmToMinutes(startHM) === null) return alert("Invalid time. Use HH:MM (example 08:10)");
+
     try {
-      await ensureTrip(routeId, driverUid, session);
-      alert(`Bus Started (${session})`);
+      await ensureTrip(routeId, driverUid, session, startHM);
+      alert(`Bus Started (${session}) at ${startHM}`);
     } catch (e) {
       alert("Failed to start trip: " + e.message);
     }
@@ -687,26 +856,15 @@
     }
   };
 
-  // Manual ETA minutes (stored in student doc for MVP simplicity)
-  window.setStudentEta = async (sid, mins) => {
-    const v = mins === "" ? null : parseInt(mins, 10);
-    if (v != null && (!Number.isFinite(v) || v < 0)) {
-      alert("ETA minutes must be a non-negative number");
-      return;
-    }
-    await updateDoc(doc(db, "students", sid), { etaMinutes: v });
-  };
-
-  // Driver marks event + keeps your existing history behavior (NOT disturbed)
-  window.markEvent = async (routeId, driverUid, sid, sName, eventType, historyField) => {
-    const session = document.getElementById('drvSession')?.value || defaultSession();
+  // Mark event + keep old history
+  window.markEvent = async (routeId, driverUid, session, sid, sName, eventType, historyField) => {
     const today = todayISO();
-    const timeStr = timeHM();
+    const timeStr = timeHMNow();
 
-    // 1) Keep your existing student status update
+    // 1) keep student status update (backward compatible)
     await updateDoc(doc(db, "students", sid), { status: historyField.replace('_', ' ').toUpperCase() });
 
-    // 2) Keep your existing history doc update
+    // 2) keep history
     await setDoc(doc(db, "history", `${sid}_${today}`), {
       date: today,
       studentName: sName,
@@ -714,29 +872,20 @@
       timestamp: serverTimestamp()
     }, { merge:true });
 
-    // 3) Add event for Option A feed
-    await addStudentEvent(routeId, driverUid, session, sid, sName, eventType, { timeStr });
-
-    // 4) Ensure trip exists (so parents can subscribe to events)
-    // If driver forgot to press Bus Started, we still create trip on first event (helpful)
+    // 3) ensure trip exists (if driver forgot bus started, create silently with current time)
     await setDoc(doc(db, "trips", tripIdFor(routeId, todayISO(), session)), {
       routeId, driverUid, date: todayISO(), session,
       status: "LIVE",
+      tripStartHM: nowHM(),
       startedAt: serverTimestamp()
     }, { merge:true });
-  };
 
-  window.handleLogout = () => signOut(auth);
+    // 4) add event for parent feed
+    await addStudentEvent(routeId, driverUid, session, sid, sName, eventType, { timeStr });
 
-  // Route AM/PM drivers
-  window.setRouteDriver = async (routeId, session, driverUid) => {
-    const field = session === "AM" ? "driverUidAM" : "driverUidPM";
-    await updateDoc(doc(db, "routes", routeId), { [field]: driverUid });
-  };
-
-  // Student route (direct)
-  window.setStudentRoute = async (sid, routeId) => {
-    await updateDoc(doc(db, "students", sid), { routeId });
+    // 5) set button to done immediately (UX)
+    const b = document.getElementById(btnId(sid, historyField));
+    if (b) { b.classList.add("btn-done"); b.disabled = true; b.innerText = "DONE"; }
   };
 
   window.delDoc = async (c, id) => { if (confirm("Delete?")) await deleteDoc(doc(db, c, id)); };
