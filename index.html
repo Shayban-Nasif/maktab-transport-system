@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RS Transport Solution - Route Logic</title>
+    <title>RS Transport Solution - Logs Enabled</title>
     <style>
-        :root { --admin: #1a73e8; --driver: #28a745; --parent: #ff9800; --bg: #f4f7f9; --danger: #dc3545; --dark: #1e293b; --done: #94a3b8; --route: #6366f1; }
+        :root { --admin: #1a73e8; --driver: #28a745; --parent: #ff9800; --bg: #f4f7f9; --danger: #dc3545; --dark: #1e293b; --done: #94a3b8; --route: #6366f1; --logs: #64748b; }
         body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; min-height: 100vh; color: #333; }
         .header-bar { background: var(--dark); color: white; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1000; flex-wrap: wrap; }
         .header-titles h1 { margin: 0; font-size: 1rem; }
@@ -21,7 +21,7 @@
         button { padding: 10px 15px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
         .btn-ready { background: var(--driver); color: white; }
         .btn-gray { background: var(--done); color: white; }
-        table { width: 100%; border-collapse: collapse; font-size: 0.8rem; min-width: 900px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.8rem; min-width: 950px; }
         th, td { text-align: left; padding: 12px; border-bottom: 1px solid #eee; }
         th { background: #f8fafc; color: #64748b; position: sticky; top: 0; }
         .btn-edit-sm { background: #f1f5f9; color: #475569; padding: 4px 8px; font-size: 0.7rem; border: 1px solid #cbd5e1; border-radius: 4px; }
@@ -62,7 +62,7 @@
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-    import { getFirestore, collection, query, where, getDocs, onSnapshot, doc, updateDoc, setDoc, deleteDoc, addDoc, serverTimestamp, deleteField } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, query, where, getDocs, onSnapshot, doc, updateDoc, setDoc, deleteDoc, addDoc, serverTimestamp, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyCS163x5b5-MJXxJGwbjE0IlO7R58CkJMg",
@@ -105,7 +105,6 @@
                 label.innerText = userData.role; label.className = `portal-tag bg-${userData.role}`;
                 document.getElementById('userInfo').classList.remove('hidden');
 
-                // Global data sync
                 onSnapshot(collection(db, "routes"), (rSnap) => {
                     routesList = rSnap.docs.map(d => ({id: d.id, ...d.data()}));
                     onSnapshot(query(collection(db, "users"), where("role", "==", "driver")), (dSnap) => {
@@ -132,10 +131,29 @@
     // --- ADMIN VIEW ---
     function renderAdmin(target) {
         target.innerHTML = `
+            <div class="card" style="border-top:4px solid var(--logs); background: #f8fafc;">
+                <h4>Daily Transport Logs (Latest Actions)</h4>
+                <div class="scroll-box">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Student</th>
+                                <th>AM Pick</th>
+                                <th>AM Drop</th>
+                                <th>PM Pick</th>
+                                <th>PM Drop</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
             <div class="card" style="border-top:4px solid var(--route)">
-                <h4>1. Route Management</h4>
+                <h4>Route Management</h4>
                 <form id="regRouteForm" style="display:flex; gap:10px; margin-bottom:15px;">
-                    <input type="text" id="rtName" placeholder="New Route Name (e.g. North Tokyo A)" required>
+                    <input type="text" id="rtName" placeholder="New Route Name" required>
                     <button type="submit" style="background:var(--route); color:white;">Create Route</button>
                 </form>
                 <div class="scroll-box">
@@ -147,7 +165,7 @@
             </div>
 
             <div class="card" style="border-top:4px solid var(--driver)">
-                <h4>2. Driver Registration</h4>
+                <h4>Driver Registration</h4>
                 <form id="regDriverForm" class="form-grid">
                     <input type="text" id="dName" placeholder="Driver Full Name" required>
                     <input type="email" id="dEmail" placeholder="Login Email" required>
@@ -159,7 +177,7 @@
             </div>
 
             <div class="card" style="border-top:4px solid var(--admin)">
-                <h4>3. Student Enrollment</h4>
+                <h4>Student Enrollment</h4>
                 <form id="regStForm" class="form-grid">
                     <input type="text" id="sName" placeholder="Student Name" required>
                     <select id="sGender"><option value="Male">Male</option><option value="Female">Female</option></select>
@@ -178,7 +196,7 @@
             </div>
 
             <div class="card">
-                <h4>4. Student Database</h4>
+                <h4>Student Database</h4>
                 <div class="scroll-box">
                     <table>
                         <thead><tr><th>Student</th><th>Route</th><th>Pickup</th><th>Dropoff</th><th>Action</th></tr></thead>
@@ -187,15 +205,32 @@
                 </div>
             </div>`;
 
-        // Update Route Table
+        // Sync Logs
+        onSnapshot(query(collection(db, "history"), orderBy("timestamp", "desc"), limit(50)), (snap) => {
+            const ltb = document.getElementById('logsTableBody');
+            if(ltb) {
+                ltb.innerHTML = "";
+                snap.forEach(docSnap => {
+                    const h = docSnap.data();
+                    ltb.innerHTML += `<tr>
+                        <td><small>${h.date || '-'}</small></td>
+                        <td><strong>${h.studentName || 'Student'}</strong></td>
+                        <td style="color:var(--driver)">${h.morn_pick || '--:--'}</td>
+                        <td style="color:var(--driver)">${h.morn_drop || '--:--'}</td>
+                        <td style="color:var(--route)">${h.ret_pick || '--:--'}</td>
+                        <td style="color:var(--route)">${h.ret_drop || '--:--'}</td>
+                    </tr>`;
+                });
+            }
+        });
+
+        // Sync Routes
         const rtBody = document.getElementById('rtTableBody');
         const rtSelect = document.getElementById('sRouteSelect');
         rtBody.innerHTML = ""; rtSelect.innerHTML = '<option value="">Select Route...</option>';
         routesList.forEach(r => {
             let drOptions = `<option value="">Unassigned</option>`;
-            Object.keys(driverMap).forEach(uid => {
-                drOptions += `<option value="${uid}" ${r.driverUid === uid ? 'selected' : ''}>${driverMap[uid].fullName}</button>`;
-            });
+            Object.keys(driverMap).forEach(uid => { drOptions += `<option value="${uid}" ${r.driverUid === uid ? 'selected' : ''}>${driverMap[uid].fullName}</option>`; });
             rtBody.innerHTML += `<tr>
                 <td><b>${r.name}</b></td>
                 <td><select onchange="window.assignDriverToRoute('${r.id}', this.value)">${drOptions}</select></td>
@@ -204,7 +239,7 @@
             rtSelect.innerHTML += `<option value="${r.id}">${r.name}</option>`;
         });
 
-        // Student Database Sync
+        // Sync Students
         onSnapshot(collection(db, "students"), (snap) => {
             const stb = document.getElementById('stTableBody');
             if(stb){
@@ -212,11 +247,8 @@
                 snap.forEach(docSnap => {
                     const s = docSnap.data();
                     const sid = docSnap.id;
-                    const rName = routesList.find(r => r.id === s.routeId)?.name || "Not Set";
-                    
                     let rtOptions = `<option value="">None</option>`;
                     routesList.forEach(r => { rtOptions += `<option value="${r.id}" ${s.routeId === r.id ? 'selected' : ''}>${r.name}</option>`; });
-
                     stb.innerHTML += `<tr>
                         <td><b>${s.name}</b><br><small>${getAge(s.dob)}Y / ${s.gender}</small></td>
                         <td><select onchange="window.updateDocField('students','${sid}','routeId', this.value)">${rtOptions}</select></td>
@@ -230,9 +262,7 @@
 
         // Form Handlers
         document.getElementById('regRouteForm').onsubmit = async (e) => {
-            e.preventDefault();
-            await addDoc(collection(db, "routes"), { name: rtName.value, driverUid: "" });
-            e.target.reset();
+            e.preventDefault(); await addDoc(collection(db, "routes"), { name: rtName.value, driverUid: "" }); e.target.reset();
         };
 
         document.getElementById('regDriverForm').onsubmit = async (e) => {
@@ -276,15 +306,12 @@
                 list.innerHTML += `
                     <div class="card" style="border-left:5px solid var(--driver)">
                         <strong>${s.name}</strong> <span class="portal-tag bg-driver">${s.status}</span>
-                        <p style="font-size:0.75rem; margin:10px 0;">
-                            📍 Pick: ${s.pickupLoc || s.address}<br>
-                            🏁 Drop: ${s.dropoffLoc || s.address}
-                        </p>
+                        <p style="font-size:0.75rem; margin:10px 0;">📍 Pick: ${s.pickupLoc || s.address}<br>🏁 Drop: ${s.dropoffLoc || s.address}</p>
                         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-                            <button class="btn-ready" onclick="window.toggleStatus('${sid}', 'morn_pick')">AM Pick</button>
-                            <button class="btn-ready" onclick="window.toggleStatus('${sid}', 'morn_drop')">AM Drop</button>
-                            <button class="btn-ready" onclick="window.toggleStatus('${sid}', 'ret_pick')">PM Pick</button>
-                            <button class="btn-ready" onclick="window.toggleStatus('${sid}', 'ret_drop')">PM Drop</button>
+                            <button class="btn-ready" onclick="window.toggleStatus('${sid}', '${s.name}', 'morn_pick')">AM Pick</button>
+                            <button class="btn-ready" onclick="window.toggleStatus('${sid}', '${s.name}', 'morn_drop')">AM Drop</button>
+                            <button class="btn-ready" onclick="window.toggleStatus('${sid}', '${s.name}', 'ret_pick')">PM Pick</button>
+                            <button class="btn-ready" onclick="window.toggleStatus('${sid}', '${s.name}', 'ret_drop')">PM Drop</button>
                         </div>
                     </div>`;
             });
@@ -323,11 +350,16 @@
         if(val !== null) await updateDoc(doc(db, col, id), { [field]: val });
     };
     window.delDoc = async (c, id) => { if(confirm("Delete?")) await deleteDoc(doc(db, c, id)); };
-    window.toggleStatus = async (sid, field) => {
+    
+    window.toggleStatus = async (sid, sName, field) => {
+        const today = new Date().toLocaleDateString('en-CA');
         const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         await updateDoc(doc(db, "students", sid), { status: field.replace('_', ' ').toUpperCase() });
-        await setDoc(doc(db, "history", `${sid}_${new Date().toLocaleDateString('en-CA')}`), {
-            [field]: timeStr, timestamp: serverTimestamp()
+        await setDoc(doc(db, "history", `${sid}_${today}`), {
+            date: today,
+            studentName: sName,
+            [field]: timeStr,
+            timestamp: serverTimestamp()
         }, { merge: true });
     };
 
