@@ -15,6 +15,7 @@
     .header-titles h1 { margin:0; font-size:1rem; }
     .container { width:98%; max-width:1200px; margin:10px auto; }
     .hidden { display:none !important; }
+    .small-input { padding:6px; font-size:0.8rem; }
     .card { background:white; padding:20px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.05); margin-bottom:20px; }
     .form-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; }
     .full-width { grid-column:1 / -1; }
@@ -80,10 +81,10 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
   import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
   import {
-    getFirestore, collection, query, where, getDocs, onSnapshot,
-    doc, updateDoc, setDoc, deleteDoc, addDoc, serverTimestamp,
-    orderBy, limit, writeBatch
-  } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+  getFirestore, collection, query, where, getDocs, getDoc, onSnapshot,
+  doc, updateDoc, setDoc, deleteDoc, addDoc, serverTimestamp,
+  orderBy, limit, writeBatch
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCS163x5b5-MJXxJGwbjE0IlO7R58CkJMg",
@@ -102,6 +103,14 @@
   let routesList = [];
   let driverMap = {};
 
+  async function setTripOverride(routeId, session, studentId, mins) {
+    const tid = tripIdFor(routeId, todayISO(), session);
+    await setDoc(doc(db, "trips", tid, "overrides", studentId), {
+      mins: mins === null ? null : mins,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  }
+  
   // ----------------- HELPERS -----------------
   const todayISO = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
   const timeHMNow = () => new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
@@ -188,31 +197,37 @@
   }
 
   // ----------------- ETA COMPUTE -----------------
-  function computeEtaForStudentFromDocs(session, studentId, tripStartHM, docs) {
-    const base = hmToMinutes(tripStartHM);
-    if (base === null) return "--:--";
+  function computeEtaForStudentFromDocs(session, studentId, tripStartHM, docs, overridesMap = {}) {
+  const base = hmToMinutes(tripStartHM);
+  if (base === null) return "--:--";
 
-    const field = (session === "AM") ? "minsAM" : "minsPM";
+  const field = (session === "AM") ? "minsAM" : "minsPM";
 
-    const sorted = docs
-      .map(d => ({ id: d.id, ...d.data() }))
-      .sort((a,b) => {
-        const ao = a.stopOrder ?? 9999;
-        const bo = b.stopOrder ?? 9999;
-        if (ao !== bo) return ao - bo;
-        return String(a.name||"").localeCompare(String(b.name||""));
-      });
+  // Only valid stopOrder
+  const list = docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .filter(s => Number.isFinite(s.stopOrder))
+    .sort((a, b) => (a.stopOrder ?? 9999) - (b.stopOrder ?? 9999));
 
-    let sum = 0;
-    for (const st of sorted) {
-      const raw = st[field];
-      const mins = Number.isFinite(raw) ? raw : parseInt(raw ?? "0", 10);
-      sum += Number.isFinite(mins) ? mins : 0;
-      if (st.id === studentId) return minutesToHM(base + sum);
-    }
-    return "--:--";
+  const me = list.find(x => x.id === studentId);
+  if (!me) return "--:--";
+
+  // If already dropped, ETA should be null
+  if (session === "AM" && me.doneAM) return "--:--";
+  if (session === "PM" && me.donePM) return "--:--";
+
+  let sum = 0;
+  for (const st of list) {
+    // Use override mins if present, else default mins from student doc
+    const override = overridesMap?.[st.id];
+    const minsRaw = (override !== undefined && override !== null) ? override : st[field];
+    const mins = parseInt(minsRaw ?? "0", 10);
+    sum += Number.isFinite(mins) ? mins : 0;
+
+    if (st.id === studentId) return minutesToHM(base + sum);
   }
-
+  return "--:--";
+}
   // ----------------- AUTH -----------------
   document.getElementById('loginForm').onsubmit = async (e) => {
     e.preventDefault();
@@ -262,6 +277,7 @@
     else renderParent(target, user.uid);
   }
 
+  
   // ----------------- ADMIN VIEW -----------------
   function renderAdmin(target) {
     target.innerHTML = `
@@ -295,16 +311,26 @@
         </form>
       </div>
 
-      <div class="card" style="border-top:4px solid var(--driver)">
-        <h4>Driver Registration</h4>
-        <form id="regDriverForm" class="form-grid">
-          <input type="text" id="dName" placeholder="Driver Full Name" required>
-          <input type="email" id="dEmail" placeholder="Login Email" required>
-          <input type="text" id="dPhone" placeholder="Phone" required>
-          <input type="text" id="dCar" placeholder="Vehicle Details (Model/Plate)" required>
-          <input type="password" id="dPass" placeholder="Password" required>
-          <button type="submit" class="btn-ready">Register Driver</button>
-        </form>
+            <div class="card" style="border-top:4px solid var(--driver)">
+              <h4>Driver Registration</h4>
+              <form id="regDriverForm" class="form-grid">
+                <input type="text" id="dName" placeholder="Driver Full Name" required>
+                <input type="email" id="dEmail" placeholder="Login Email" required>
+                <input type="text" id="dPhone" placeholder="Phone" required>
+                <input type="text" id="dCar" placeholder="Vehicle Details (Model/Plate)" required>
+                <input type="password" id="dPass" placeholder="Password" required>
+                <button type="submit" class="btn-ready">Register Driver</button>
+              </form>
+            </div>
+      
+            <div class="card" style="border-top:4px solid var(--driver)">
+        <h4>Registered Drivers</h4>
+        <div class="scroll-box">
+          <table>
+            <thead><tr><th>Name</th><th>Phone</th><th>Car</th><th>Email</th></tr></thead>
+            <tbody id="driverTableBody"></tbody>
+          </table>
+        </div>
       </div>
 
       <div class="card" style="border-top:4px solid var(--admin)">
@@ -366,7 +392,7 @@
         </tr>`;
       });
     });
-
+    
     // Route table + route select
     const rtBody = document.getElementById('rtTableBody');
     const rtSelect = document.getElementById('sRouteSelect');
@@ -394,6 +420,20 @@
       `;
     });
 
+      // Fill driver directory table
+      const dtb = document.getElementById("driverTableBody");
+      if (dtb) {
+        dtb.innerHTML = "";
+        Object.values(driverMap).forEach(d => {
+          dtb.innerHTML += `<tr>
+            <td><b>${escapeHtml(d.fullName || "-")}</b></td>
+            <td>${escapeHtml(d.phone || "-")}</td>
+            <td>${escapeHtml(d.assignedCar || "-")}</td>
+            <td>${escapeHtml(d.email || "-")}</td>
+          </tr>`;
+        });
+      }
+    
     // Student database
     onSnapshot(collection(db, "students"), (snap) => {
       const stb = document.getElementById('stTableBody');
@@ -418,8 +458,11 @@
           <td>${escapeHtml(s.pickupLoc || s.address || "-")}</td>
           <td>${escapeHtml(s.dropoffLoc || s.address || "-")}</td>
 
-          <td><input type="number" min="1" step="1" value="${s.stopOrder ?? ""}"
-            onchange="window.setStudentFieldNumber('${sid}','stopOrder', this.value)" /></td>
+          <td>
+                <input type="number" min="1" step="1" value="${s.stopOrder ?? ""}"
+                  onchange="window.setStudentFieldNumber('${sid}','stopOrder', this.value)" />
+                ${typeof s.stopOrder !== "number" ? `<div class="mini danger">No Stop #</div>` : ``}
+              </td>
 
           <td><input type="number" min="0" step="1" value="${s.minsAM ?? ""}"
             onchange="window.setStudentFieldNumber('${sid}','minsAM', this.value)" /></td>
@@ -526,6 +569,18 @@
       return;
     }
 
+          // ✅ prevent listener stacking when switching route/session
+      let unsubTrip = null;
+      let unsubOverrides = null;
+      let unsubStudents = null;
+      
+      const clearDriverSubs = () => {
+        if (unsubTrip) { unsubTrip(); unsubTrip = null; }
+        if (unsubOverrides) { unsubOverrides(); unsubOverrides = null; }
+        if (unsubStudents) { unsubStudents(); unsubStudents = null; }
+      };
+
+    
     target.innerHTML = `
       <div class="card" style="border-top:4px solid var(--driver)">
         <div class="row" style="justify-content:space-between;">
@@ -597,71 +652,110 @@
 
       const tid = tripIdFor(routeId, todayISO(), session);
       document.getElementById('tripBadge').innerText = tid;
+      let tripStartHM = null;
+        let overridesMap = {};
+        
+        // ✅ clear previous listeners when switching route/session
+clearDriverSubs();
 
-      onSnapshot(doc(db, "trips", tid), (snap) => {
-        const el = document.getElementById('tripState');
-        if (!el) return;
-        el.innerText = snap.exists() ? `(${snap.data().status || "LIVE"})` : "(not started)";
+// Trip doc
+unsubTrip = onSnapshot(doc(db, "trips", tid), (snap) => {
+  const el = document.getElementById('tripState');
+  if (el) el.innerText = snap.exists() ? `(${snap.data().status || "LIVE"})` : "(not started)";
+  tripStartHM = snap.exists() ? (snap.data().tripStartHM || null) : null;
+});
+
+// Overrides (driver edits mins here)
+unsubOverrides = onSnapshot(collection(db, "trips", tid, "overrides"), (oSnap) => {
+  overridesMap = {};
+  oSnap.forEach(d => {
+    const data = d.data();
+    overridesMap[d.id] = data?.mins ?? null;
+  });
+});
+
+// Students list
+unsubStudents = onSnapshot(
+  query(collection(db, "students"), where("routeId", "==", routeId)),
+  (snap) => {
+    const list = document.getElementById('dList');
+    list.innerHTML = "";
+
+    const docs = snap.docs
+      .map(d => ({ id:d.id, ...d.data() }))
+      .sort((a,b) => {
+        const ao = a.stopOrder ?? 9999;
+        const bo = b.stopOrder ?? 9999;
+        if (ao !== bo) return ao - bo;
+        return String(a.name||"").localeCompare(String(b.name||""));
       });
 
-      onSnapshot(query(collection(db, "students"), where("routeId", "==", routeId)), (snap) => {
-        const list = document.getElementById('dList');
-        list.innerHTML = "";
+    docs.forEach(st => {
+      const sid = st.id;
+      const isLeave = st.status === "LEAVE";
+      const pickup = st.pickupLoc || st.address || "";
+      const dropoff = st.dropoffLoc || st.address || "";
+      const eta = tripStartHM
+        ? computeEtaForStudentFromDocs(session, sid, tripStartHM, snap.docs, overridesMap)
+        : "--:--";
 
-        // show sorted by stopOrder
-        const docs = snap.docs
-          .map(d => ({ id:d.id, ...d.data() }))
-          .sort((a,b) => {
-            const ao = a.stopOrder ?? 9999;
-            const bo = b.stopOrder ?? 9999;
-            if (ao !== bo) return ao - bo;
-            return String(a.name||"").localeCompare(String(b.name||""));
-          });
+      const field = (session === "AM") ? "minsAM" : "minsPM";
+      const baseMins = parseInt(st[field] ?? "0", 10);
+      const overrideMins = overridesMap?.[sid];
+      const minsValue = (overrideMins !== undefined && overrideMins !== null)
+        ? overrideMins
+        : (Number.isFinite(baseMins) ? baseMins : 0);
 
-        docs.forEach(st => {
-          const sid = st.id;
-          const isLeave = st.status === "LEAVE";
-          const pickup = st.pickupLoc || st.address || "";
-          const dropoff = st.dropoffLoc || st.address || "";
+      list.innerHTML += `
+        <div class="card" style="border-left:5px solid ${isLeave ? 'var(--danger)' : 'var(--driver)'}">
+          <div class="row" style="justify-content:space-between; align-items:flex-start;">
+            <div>
+              <strong>${escapeHtml(st.name || "")}</strong>
+              ${isLeave ? '<span class="portal-tag bg-danger" style="margin-left:8px;">LEAVE</span>' : '<span class="portal-tag bg-driver" style="margin-left:8px;">ACTIVE</span>'}
+              <div class="mini"># Stop: <b>${st.stopOrder ?? "-"}</b> • ETA: <b>${eta}</b></div>
 
-          list.innerHTML += `
-            <div class="card" style="border-left:5px solid ${isLeave ? 'var(--danger)' : 'var(--driver)'}">
-              <div class="row" style="justify-content:space-between; align-items:flex-start;">
-                <div>
-                  <strong>${escapeHtml(st.name || "")}</strong>
-                  ${isLeave ? '<span class="portal-tag bg-danger" style="margin-left:8px;">LEAVE</span>' : '<span class="portal-tag bg-driver" style="margin-left:8px;">ACTIVE</span>'}
-                  <div class="mini"># Stop: <b>${st.stopOrder ?? "-"}</b> • AM min: <b>${st.minsAM ?? "-"}</b> • PM min: <b>${st.minsPM ?? "-"}</b></div>
-                  <div class="mini">📍 Pick: ${escapeHtml(pickup)}</div>
-                  <div class="mini">🏁 Drop: ${escapeHtml(dropoff)}</div>
-                </div>
-
-                <div class="row">
-                  <button class="btn-outline" onclick="window.openMapTo('${escapeHtml(pickup)}')">🗺️ Map</button>
-                </div>
+              <div class="row" style="margin-top:6px;">
+                <div class="chip">⏱️ Min (this stop):</div>
+                <input class="small-input" type="number" min="0" step="1" value="${minsValue}"
+                  onchange="window.updateStopMins('${routeId}','${session}','${sid}', this.value)" style="max-width:120px;">
+                <button class="btn-outline" onclick="window.clearStopMins('${routeId}','${session}','${sid}')">Reset</button>
               </div>
-
-              ${isLeave ? '<div class="danger" style="margin-top:10px;">On Leave Today</div>' : `
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px;">
-                  <button id="${btnId(sid,'morn_pick')}" class="btn-ready"
-                    onclick="window.markEvent('${routeId}','${uid}','${session}','${sid}','${escapeHtml(st.name)}','PICKED_AM','morn_pick')">AM Picked</button>
-
-                  <button id="${btnId(sid,'morn_drop')}" class="btn-ready"
-                    onclick="window.markEvent('${routeId}','${uid}','${session}','${sid}','${escapeHtml(st.name)}','DROPPED_SCHOOL_AM','morn_drop')">AM Dropped</button>
-
-                  <button id="${btnId(sid,'ret_pick')}" class="btn-ready"
-                    onclick="window.markEvent('${routeId}','${uid}','${session}','${sid}','${escapeHtml(st.name)}','PICKED_SCHOOL_PM','ret_pick')">PM Picked</button>
-
-                  <button id="${btnId(sid,'ret_drop')}" class="btn-ready"
-                    onclick="window.markEvent('${routeId}','${uid}','${session}','${sid}','${escapeHtml(st.name)}','DROPPED_PM','ret_drop')">PM Dropped</button>
-                </div>
-              `}
+              <div class="mini">📍 Pick: ${escapeHtml(pickup)}</div>
+              <div class="mini">🏁 Drop: ${escapeHtml(dropoff)}</div>
             </div>
-          `;
-        });
 
-        // attach watchers for button state
-        docs.forEach(st => attachProgressWatcher(st.id));
-      });
+            <div class="row">
+              <button class="btn-outline" onclick="window.openMapTo('${escapeHtml(pickup)}')">🗺️ Map</button>
+            </div>
+          </div>
+
+          ${isLeave ? '<div class="danger" style="margin-top:10px;">On Leave Today</div>' : `
+            ${session === "AM" ? `
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px;">
+                <button id="${btnId(sid,'morn_pick')}" class="btn-ready"
+                  onclick="window.markEvent('${routeId}','${uid}','AM','${sid}','${escapeHtml(st.name)}','PICKED_AM','morn_pick')">AM Picked</button>
+
+                <button id="${btnId(sid,'morn_drop')}" class="btn-ready"
+                  onclick="window.markEvent('${routeId}','${uid}','AM','${sid}','${escapeHtml(st.name)}','DROPPED_SCHOOL_AM','morn_drop')">AM Dropped</button>
+              </div>
+            ` : `
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px;">
+                <button id="${btnId(sid,'ret_pick')}" class="btn-ready"
+                  onclick="window.markEvent('${routeId}','${uid}','PM','${sid}','${escapeHtml(st.name)}','PICKED_SCHOOL_PM','ret_pick')">PM Picked</button>
+
+                <button id="${btnId(sid,'ret_drop')}" class="btn-ready"
+                  onclick="window.markEvent('${routeId}','${uid}','PM','${sid}','${escapeHtml(st.name)}','DROPPED_PM','ret_drop')">PM Dropped</button>
+              </div>
+            `}
+          `}
+        </div>
+      `;
+    });
+
+    docs.forEach(st => attachProgressWatcher(st.id));
+  }
+);    
+    
     };
 
     document.getElementById("drvRoute").onchange = () => { setSessionOptions(); refreshDriverView(); };
@@ -684,7 +778,9 @@
         const s = docSnap.data();
         const sid = docSnap.id;
         const route = routesList.find(r => r.id === s.routeId);
-
+        // ✅ prevent stacking listeners when parent switches AM/PM
+        let unsubs = [];
+        const clearParentSubs = () => { unsubs.forEach(u => u()); unsubs = []; };
         // Parent can switch AM/PM manually to avoid confusion
         const defaultSess = defaultSession();
 
@@ -715,6 +811,8 @@
 
             <div style="text-align:left; margin-top:15px; font-size:0.85rem;">
               <p><b>Route:</b> ${route ? escapeHtml(route.name) : 'N/A'}</p>
+              <p><b>Driver:</b> <span id="drv_${sid}">Loading...</span></p>
+              <p><b>Car:</b> <span id="car_${sid}">Loading...</span></p>
               <p><b>Pickup:</b> ${escapeHtml(s.pickupLoc || s.address || "-")}</p>
               <p><b>Dropoff:</b> ${escapeHtml(s.dropoffLoc || s.address || "-")}</p>
             </div>
@@ -729,70 +827,100 @@
           </div>
         `;
 
-        const bindParentTrip = (session) => {
-          if (!route) return;
 
-          const tripId = tripIdFor(route.id, todayISO(), session);
+const bindParentTrip = (session) => {
+  clearParentSubs();
+  if (!route) return;
 
-          // trip state + start time for ETA
-          onSnapshot(doc(db, "trips", tripId), (tSnap) => {
-            const stateEl = document.getElementById(`tripState_${sid}`);
-            const etaEl = document.getElementById(`eta_${sid}`);
-            if (!stateEl || !etaEl) return;
+  // Driver + car info based on session
+  const driverUid = (session === "AM" ? route.driverUidAM : route.driverUidPM) || "";
+  const d = driverUid ? (driverMap[driverUid] || {}) : {};
+  const drvEl = document.getElementById(`drv_${sid}`);
+  const carEl = document.getElementById(`car_${sid}`);
+  if (drvEl) drvEl.innerText = `${d.fullName || "Unassigned"} (${d.phone || "-"})`;
+  if (carEl) carEl.innerText = d.assignedCar || "-";
 
-            if (!tSnap.exists()) {
-              stateEl.innerText = "Not started";
-              etaEl.innerText = "--:--";
-              return;
-            }
+  const tripId = tripIdFor(route.id, todayISO(), session);
+  let overridesMap = {};
 
-            const trip = tSnap.data();
-            stateEl.innerText = trip.status || "LIVE";
+  // overrides
+  unsubs.push(onSnapshot(collection(db, "trips", tripId, "overrides"), (oSnap) => {
+    overridesMap = {};
+    oSnap.forEach(d => { overridesMap[d.id] = d.data()?.mins ?? null; });
+  }));
 
-            const startHM = trip.tripStartHM;
-            if (!startHM) { etaEl.innerText = "--:--"; return; }
+  // trip doc + ETA
+  unsubs.push(onSnapshot(doc(db, "trips", tripId), (tSnap) => {
+    const stateEl = document.getElementById(`tripState_${sid}`);
+    const etaEl = document.getElementById(`eta_${sid}`);
+    if (!stateEl || !etaEl) return;
 
-            // live compute ETA from students in this route
-            onSnapshot(query(collection(db, "students"), where("routeId", "==", route.id)), (stSnap) => {
-              const eta = computeEtaForStudentFromDocs(session, sid, startHM, stSnap.docs);
-              const e = document.getElementById(`eta_${sid}`);
-              if (e) e.innerText = eta;
-            });
-          });
+    if (!tSnap.exists()) {
+      stateEl.innerText = "Not started";
+      etaEl.innerText = "--:--";
+      return;
+    }
 
-          // feed events
-          onSnapshot(query(collection(db, "trips", tripId, "events"), orderBy("timestamp", "desc"), limit(15)), (eSnap) => {
-            const box = document.getElementById(`feed_${sid}`);
-            if (!box) return;
+    const trip = tSnap.data();
+    stateEl.innerText = trip.status || "LIVE";
 
-            box.innerHTML = "";
-            if (eSnap.empty) {
-              box.innerHTML = `<div class="mini">No updates yet.</div>`;
-              return;
-            }
+    const startHM = trip.tripStartHM;
+    if (!startHM) { etaEl.innerText = "--:--"; return; }
 
-            eSnap.forEach(evDoc => {
-              const ev = evDoc.data();
-              const ts = ev.timestamp?.toDate ? ev.timestamp.toDate().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : "--:--";
-              const mine = ev.studentId === sid;
-              box.innerHTML += `
-                <div class="chip" style="margin:6px 0; background:${mine ? '#fff7ed' : '#ffffff'};">
-                  <b>${escapeHtml(ev.type || "EVENT")}</b>
-                  <span class="mini">${ts}</span>
-                  ${mine ? '<span class="portal-tag bg-parent">YOUR CHILD</span>' : ''}
-                </div>
-              `;
-            });
-          });
-        };
+    // students in route for live ETA
+    unsubs.push(onSnapshot(
+      query(collection(db, "students"), where("routeId", "==", route.id)),
+      (stSnap) => {
+        const eta = computeEtaForStudentFromDocs(session, sid, startHM, stSnap.docs, overridesMap);
+        const e = document.getElementById(`eta_${sid}`);
+        if (e) e.innerText = eta;
+      }
+    ));
+  }));
 
-        // bind initial + on session change
-        const sel = document.getElementById(`pSess_${sid}`);
-        bindParentTrip(sel.value);
-        sel.onchange = () => bindParentTrip(sel.value);
+  // ✅ feed events (no stacking)
+  unsubs.push(onSnapshot(
+    query(collection(db, "trips", tripId, "events"), orderBy("timestamp", "desc"), limit(30)),
+    (eSnap) => {
+      const box = document.getElementById(`feed_${sid}`);
+      if (!box) return;
+
+      box.innerHTML = "";
+      if (eSnap.empty) {
+        box.innerHTML = `<div class="mini">No updates yet.</div>`;
+        return;
+      }
+
+      eSnap.forEach(evDoc => {
+        const ev = evDoc.data();
+        const show = (ev.type === "BUS_STARTED" || ev.type === "BUS_ENDED" || ev.studentId === sid);
+        if (!show) return;
+
+        const ts = ev.timestamp?.toDate
+          ? ev.timestamp.toDate().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })
+          : "--:--";
+
+        const mine = ev.studentId === sid;
+
+        box.innerHTML += `
+          <div class="chip" style="margin:6px 0; background:${mine ? '#fff7ed' : '#ffffff'};">
+            <b>${escapeHtml(ev.type || "EVENT")}</b>
+            <span class="mini">${ts}</span>
+            ${mine ? '<span class="portal-tag bg-parent">YOUR CHILD</span>' : ''}
+          </div>
+        `;
       });
-    });
-  }
+    }
+  ));
+}; // ✅ CLOSE bindParentTrip
+
+// ✅ bind initial + on session change (MUST be outside the function)
+const sel = document.getElementById(`pSess_${sid}`);
+bindParentTrip(sel.value);
+sel.onchange = () => bindParentTrip(sel.value);
+              }); // ✅ end snap.forEach
+    });   // ✅ end onSnapshot
+  }       // ✅ end renderParent
 
   // ----------------- GLOBAL ACTIONS -----------------
   window.handleLogout = () => signOut(auth);
@@ -801,11 +929,21 @@
     if (!confirm("This will clear all statuses and leave requests for all students. Proceed?")) return;
     const batch = writeBatch(db);
     const snap = await getDocs(collection(db, "students"));
-    snap.forEach(d => batch.update(d.ref, { status: "AWAITING" }));
+    snap.forEach(d => batch.update(d.ref, { status: "AWAITING", doneAM: false, donePM: false }));
     await batch.commit();
     alert("System reset complete!");
   };
 
+    window.updateStopMins = async (routeId, session, sid, val) => {
+      const v = val === "" ? null : parseInt(val, 10);
+      if (v != null && (!Number.isFinite(v) || v < 0)) return alert("Invalid minutes");
+      await setTripOverride(routeId, session, sid, v);
+    };
+    
+    window.clearStopMins = async (routeId, session, sid) => {
+      await setTripOverride(routeId, session, sid, null);
+    };
+    
   window.requestLeave = async (sid) => {
     if (confirm("Notify driver that student will be on leave today?")) {
       await updateDoc(doc(db, "students", sid), { status: "LEAVE" });
@@ -863,7 +1001,13 @@
 
     // 1) keep student status update (backward compatible)
     await updateDoc(doc(db, "students", sid), { status: historyField.replace('_', ' ').toUpperCase() });
-
+      // Clear ETA after drop
+      const donePatch = {};
+      if (historyField === "morn_drop") donePatch.doneAM = true;
+      if (historyField === "ret_drop") donePatch.donePM = true;
+      if (Object.keys(donePatch).length) {
+        await updateDoc(doc(db, "students", sid), donePatch);
+      }
     // 2) keep history
     await setDoc(doc(db, "history", `${sid}_${today}`), {
       date: today,
@@ -873,12 +1017,13 @@
     }, { merge:true });
 
     // 3) ensure trip exists (if driver forgot bus started, create silently with current time)
-    await setDoc(doc(db, "trips", tripIdFor(routeId, todayISO(), session)), {
-      routeId, driverUid, date: todayISO(), session,
-      status: "LIVE",
-      tripStartHM: nowHM(),
-      startedAt: serverTimestamp()
-    }, { merge:true });
+    const tRef = doc(db, "trips", tripIdFor(routeId, todayISO(), session));
+      await setDoc(tRef, {
+  routeId, driverUid, date: todayISO(), session,
+  status: "LIVE",
+  tripStartHM: nowHM(),   // ✅ add
+  startedAt: serverTimestamp()
+}, { merge:true });
 
     // 4) add event for parent feed
     await addStudentEvent(routeId, driverUid, session, sid, sName, eventType, { timeStr });
