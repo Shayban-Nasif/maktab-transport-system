@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes" />
   <title>RS Transport Solution - Enhanced</title>
@@ -8,6 +9,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js"></script>
   <!-- Add Font Awesome for icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="manifest" href="/manifest.json">
   <style>
     :root {
       --admin: #1a73e8;
@@ -308,6 +310,21 @@
 </head>
 <body>
 
+  <script>
+// Register Service Worker immediately when page loads
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/firebase-messaging-sw.js')
+      .then(function(registration) {
+        console.log('✅ Service Worker registered successfully:', registration.scope);
+      })
+      .catch(function(err) {
+        console.log('❌ Service Worker registration failed:', err);
+      });
+  });
+}
+</script>
+  
 <header class="header-bar">
   <div class="header-titles">
     <h1><i class="fas fa-bus"></i> RS TRANSPORT SOLUTION</h1>
@@ -395,11 +412,28 @@
 
   // ============== FCM INITIALIZATION WITH VAPID KEY ==============
 let messaging = null;
-try {
-  messaging = firebase.messaging(app);
-  console.log("FCM initialized successfully");
-} catch (e) {
-  console.log("FCM not available:", e);
+
+// Wait for service worker to be ready
+if ('serviceWorker' in navigator && 'PushManager' in window) {
+  console.log("✅ Push notifications are supported");
+  
+  try {
+    // Initialize messaging with explicit service worker registration
+    navigator.serviceWorker.ready.then(registration => {
+      console.log("✅ Service Worker ready, initializing FCM...");
+      
+      messaging = firebase.messaging(app);
+      
+      // Use the registered service worker
+      messaging.useServiceWorker(registration);
+      
+      console.log("✅ FCM initialized successfully with service worker");
+    });
+  } catch (e) {
+    console.log("❌ FCM initialization error:", e);
+  }
+} else {
+  console.log("❌ Push notifications are not supported in this browser");
 }
 
 // ============== REQUEST NOTIFICATION PERMISSION & GET TOKEN ==============
