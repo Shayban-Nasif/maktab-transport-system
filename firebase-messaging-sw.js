@@ -1,7 +1,8 @@
+// firebase-messaging-sw.js - MUST BE IN YOUR WEBSITE ROOT DIRECTORY
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
 
-// 🔴 Your Firebase config - MUST match your main app
+// 🔴 IMPORTANT: Replace this with your EXACT Firebase config from your main code
 firebase.initializeApp({
   apiKey: "AIzaSyCS163x5b5-MJXxJGwbjE0IlO7R58CkJMg",
   authDomain: "maktab-transport.firebaseapp.com",
@@ -13,25 +14,33 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// Handle background notifications
+// 🔴 Handle background notifications (when app is closed)
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message:', payload);
   
   const notificationTitle = payload.notification?.title || 'Transport Update';
   const notificationOptions = {
     body: payload.notification?.body || 'Your child\'s transport status has changed',
-    icon: 'https://cdn-icons-png.flaticon.com/512/3774/3774278.png',
-    badge: 'https://cdn-icons-png.flaticon.com/512/3774/3774278.png',
+    icon: '/bus-icon.png', // Optional: add a bus icon
+    badge: '/badge-icon.png', // Optional: add a badge icon
     data: payload.data,
-    vibrate: [200, 100, 200],
-    requireInteraction: true
+    actions: [
+      {
+        action: 'open',
+        title: 'View Details'
+      }
+    ]
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
-// Handle notification click
+// 🔴 Handle notification click events
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  event.waitUntil(clients.openWindow('/'));
+  
+  if (event.action === 'open') {
+    // Open your app when notification is clicked
+    event.waitUntil(clients.openWindow('/'));
+  }
 });
