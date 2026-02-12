@@ -1,0 +1,138 @@
+const functions = require('firebase-functions');
+const admin = require('firebase-admin');
+admin.initializeApp();
+
+// This function runs AUTOMATICALLY whenever an event is added to any trip
+exports.sendTransportNotification = functions.firestore
+    .document('trips/{tripId}/events/{eventId}')
+    .onCreate(async (snap, context) => {
+        
+        console.log('🎯 New event detected!');
+        const event = snap.data();
+        
+        // STEP 1: Check if this event has a student ID
+        if (!event.studentId) {
+            console.log('⚠️ No student ID - skipping');
+            return null;
+        }
+        
+        console.log(`📋 Event type: ${event.type} for student: ${event.studentName}`);
+        
+        try {
+            // STEP 2: Find the student and their parent
+            const studentDoc = await admin.firestore()
+                .collection('students')
+                .doc(event.studentId)
+                .get();
+            
+            if (!studentDoc.exists) {
+                console.log('⚠️ Student not found');
+                return null;
+            }
+            
+            const student = studentDoc.data();
+            const parentUid = student.parentUid;
+            
+            if (!parentUid) {
+                console.log('⚠️ No parent assigned');
+                return null;
+            }
+            
+            // STEP 3: Find parent's FCM tokens
+            const usersQuery = await admin.firestore()
+                .collection('users')
+                .where('uid', '==', parentUid)
+                .limit(1)
+                .get();
+            
+            if (usersQuery.empty) {
+                console.log('⚠️ Parent user not found');
+                return null;
+            }
+            
+            const parentUser = usersQuery.docs[0].data();
+            const fcmTokens = parentUser.fcmTokens || [];
+            
+            if (fcmTokens.length === 0) {
+                console.log('⚠️ Parent has no FCM tokens (notifications not enabled)');
+                return null;
+            }
+            
+            console.log(`📱 Found ${fcmTokens.length} device(s) for parent`);
+            
+            // STEP 4: Create notification message based on event type
+            let title = 'Transport Update';
+            let body = `Update for ${event.studentName || 'your child'}`;
+            
+            switch(event.type) {
+                case 'BUS_STARTED':
+                    title = '🚌 Bus Started';
+                    body = `The ${event.session || ''} trip has started`;
+                    break;
+                case 'PICKED_AM':
+                    title = '✅ Picked Up';
+                    body = `${event.studentName} has been picked up for school`;
+                    break;
+                case 'DROPPED_SCHOOL_AM':
+                    title = '🏫 Reached School';
+                    body = `${event.studentName} has arrived at school safely`;
+                    break;
+                case 'PICKED_SCHOOL_PM':
+                    title = '🚐 School Pickup';
+                    body = `${event.studentName} has been picked up from school`;
+                    break;
+                case 'DROPPED_PM':
+                    title = '🏠 Home Safe';
+                    body = `${event.studentName} has been dropped home`;
+                    break;
+                case 'BUS_ENDED':
+                    title = '🏁 Trip Completed';
+                    body = `The ${event.session || ''} trip has ended`;
+                    break;
+            }
+            
+            // STEP 5: Send the notification
+            const message = {
+                notification: { 
+                    title, 
+                    body 
+                },
+                data: {
+                    studentId: event.studentId,
+                    studentName: event.studentName || '',
+                    eventType: event.type,
+                    session: event.session || '',
+                    routeId: event.routeId || '',
+                    timestamp: Date.now().toString(),
+                    click_action: 'FLUTTER_NOTIFICATION_CLICK' // For mobile apps if any
+                },
+                tokens: fcmTokens
+            };
+            
+            console.log(`📨 Sending: "${title}" - "${body}"`);
+            
+            const response = await admin.messaging().sendEachForMulticast(message);
+            
+            console.log(`✅ Success: ${response.successCount} device(s)`);
+            console.log(`❌ Failed: ${response.failureCount} device(s)`);
+            
+            // STEP 6: Log the result (optional - helpful for debugging)
+            await admin.firestore().collection('notification_logs').add({
+                studentId: event.studentId,
+                studentName: event.studentName,
+                parentUid: parentUid,
+                eventType: event.type,
+                title: title,
+                body: body,
+                successCount: response.successCount,
+                failureCount: response.failureCount,
+                timestamp: admin.firestore.FieldValue.serverTimestamp()
+            });
+            
+            return response;
+            
+        } catch (error) {
+            console.error('❌ ERROR:', error);
+            return null;
+        }
+    });
