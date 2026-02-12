@@ -393,13 +393,61 @@
   const auth = getAuth(app);
   const secAuth = getAuth(initializeApp(firebaseConfig, "Secondary"));
 
-  // FCM Initialization
-  let messaging = null;
-  try {
-    messaging = firebase.messaging(app);
-  } catch (e) {
-    console.log("FCM not available");
-  }
+ // ============== FCM INITIALIZATION WITH VAPID KEY ==============
+let messaging = null;
+
+// Your VAPID key - GET THIS FROM FIREBASE CONSOLE!
+const VAPID_KEY = "BAA2c2R09q_WHKNY7HCgD8wkAr9Mhif2AOZ1_BSx9aSBn5e5eXjDOCppnksF9w39KeV7A9bI_lcjFXTCjJyjnqc"; // <--- YOU MUST REPLACE THIS!
+
+if ('serviceWorker' in navigator && 'PushManager' in window) {
+  console.log("✅ Push notifications supported");
+  
+  navigator.serviceWorker.ready
+    .then((registration) => {
+      console.log("✅ Service Worker ready");
+      messaging = firebase.messaging(app);
+      messaging.useServiceWorker(registration);
+      console.log("✅ FCM initialized");
+      
+      // Request permission function
+      window.requestNotificationPermission = async () => {
+        try {
+          const permission = await Notification.requestPermission();
+          if (permission === 'granted') {
+            const token = await messaging.getToken({ vapidKey: VAPID_KEY });
+            console.log('✅ FCM Token:', token);
+            
+            // Save token to user document
+            const user = auth.currentUser;
+            if (user) {
+              const userQuery = query(collection(db, "users"), where("uid", "==", user.uid));
+              const userSnap = await getDocs(userQuery);
+              if (!userSnap.empty) {
+                const userDoc = userSnap.docs[0];
+                const existingTokens = userDoc.data().fcmTokens || [];
+                if (!existingTokens.includes(token)) {
+                  await updateDoc(userDoc.ref, {
+                    fcmTokens: [...existingTokens, token],
+                    notificationsEnabled: true
+                  });
+                  console.log("✅ Token saved to Firestore");
+                }
+              }
+            }
+            alert('✅ Notifications enabled!');
+            return token;
+          }
+        } catch (err) {
+          console.error('❌ Notification error:', err);
+        }
+      };
+    })
+    .catch((err) => {
+      console.error('❌ Service Worker error:', err);
+    });
+} else {
+  console.log("❌ Push notifications not supported in this browser");
+}
 
   // Global State
   let routesList = [];
