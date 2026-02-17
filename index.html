@@ -393,6 +393,21 @@
   const auth = getAuth(app);
   const secAuth = getAuth(initializeApp(firebaseConfig, "Secondary"));
 
+  // Add this right after your Firebase initialization
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/firebase-messaging-sw.js')
+    .then((registration) => {
+      console.log('✅ Service Worker registered:', registration.scope);
+      
+      // Now initialize messaging
+      messaging = firebase.messaging();
+      messaging.useServiceWorker(registration);
+      console.log('✅ FCM ready');
+    })
+    .catch((err) => {
+      console.error('❌ Service Worker registration failed:', err);
+    });
+}
  // ============== FCM INITIALIZATION WITH VAPID KEY ==============
 let messaging = null;
 
