@@ -1,4 +1,5 @@
 // js/panels/driver-panel.js
+// At the VERY TOP of driver-panel.js
 import { db } from '../config/firebase.js';
 import { 
     collection, doc, query, where, onSnapshot, 
@@ -7,7 +8,9 @@ import {
 import { escapeHtml, showToast, confirmAction, tripIdFor, btnId } from '../utils/helpers.js';
 import { computeEtaForStudentFromDocs } from '../utils/eta-calculator.js';
 import { todayISO, nowHM, hmToMinutes } from '../utils/date-time.js';
-import { TripService, StudentService } from '../services/firestore.js';
+import { TripService } from '../services/trip-service.js';
+import { StudentService } from '../services/student-service.js';
+import { HistoryService } from '../services/history-service.js';
 
 // State
 let currentRouteId = null;
