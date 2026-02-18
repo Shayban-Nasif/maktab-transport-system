@@ -1,9 +1,20 @@
 // js/services/trip-service.js
 import { db } from '../config/firebase.js';
 import { 
-    collection, doc, setDoc, updateDoc, addDoc, getDoc,
-    serverTimestamp 
+    collection, 
+    doc, 
+    setDoc, 
+    updateDoc, 
+    addDoc, 
+    getDoc, 
+    getDocs, 
+    query, 
+    where,
+    serverTimestamp,
+    deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+// ... rest of your TripService code
 
 // ============== TRIP SERVICES ==============
 export const TripService = {
