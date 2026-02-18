@@ -1,0 +1,297 @@
+  <style>
+    :root {
+      --admin: #1a73e8;
+      --driver: #28a745;
+      --parent: #ff9800;
+      --bg: #f4f7f9;
+      --danger: #dc3545;
+      --dark: #1e293b;
+      --route: #6366f1;
+      --logs: #64748b;
+      --done: #94a3b8;
+      --warning: #ffc107;
+      --success: #28a745;
+      --info: #17a2b8;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+      background: var(--bg);
+      margin: 0;
+      min-height: 100vh;
+      color: #1e293b;
+    }
+    
+    .header-bar {
+      background: var(--dark);
+      color: white;
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      flex-wrap: wrap;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    .container {
+      width: 98%;
+      max-width: 1400px;
+      margin: 20px auto;
+    }
+    
+    .hidden {
+      display: none !important;
+    }
+    
+    /* Modern Card Design */
+    .card {
+      background: white;
+      padding: 24px;
+      border-radius: 16px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.03);
+      margin-bottom: 24px;
+      border: 1px solid rgba(0,0,0,0.03);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .card:hover {
+      box-shadow: 0 12px 28px rgba(0,0,0,0.05);
+    }
+    
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+    }
+    
+    /* Enhanced Scroll Box */
+    .scroll-box {
+      max-height: 500px;
+      overflow-y: auto;
+      overflow-x: auto;
+      border: 1px solid #edf2f7;
+      border-radius: 12px;
+      background: white;
+      padding: 4px;
+    }
+    
+    /* Modern Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    
+    th {
+      background: #f8fafc;
+      color: #475569;
+      font-weight: 600;
+      padding: 16px 12px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    
+    td {
+      padding: 14px 12px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    
+    /* Better Buttons */
+    button {
+      padding: 12px 20px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 0.9rem;
+    }
+    
+    button i {
+      font-size: 1rem;
+    }
+    
+    button:active {
+      transform: scale(0.96);
+    }
+    
+    .btn-ready {
+      background: var(--driver);
+      color: white;
+    }
+    
+    .btn-ready:hover {
+      background: #218838;
+    }
+    
+    .btn-leave {
+      background: var(--danger);
+      color: white;
+    }
+    
+    .btn-route {
+      background: var(--route);
+      color: white;
+    }
+    
+    .btn-outline {
+      background: white;
+      border: 2px solid #cbd5e1;
+      color: #334155;
+    }
+    
+    .btn-outline:hover {
+      background: #f8fafc;
+    }
+    
+    /* Driver Card - Enhanced */
+    .driver-student-card {
+      background: white;
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 16px;
+      border-left: 6px solid var(--driver);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+      transition: all 0.3s;
+    }
+    
+    .driver-student-card.leave {
+      border-left-color: var(--danger);
+      opacity: 0.8;
+    }
+    
+    .driver-student-card.next-stop {
+      border-left-color: var(--warning);
+      background: #fffbeb;
+    }
+    
+    .stop-badge {
+      background: #e2e8f0;
+      padding: 6px 14px;
+      border-radius: 30px;
+      font-weight: 700;
+      font-size: 0.8rem;
+    }
+    
+    /* Progress Bar */
+    .progress-container {
+      background: #edf2f7;
+      border-radius: 30px;
+      height: 12px;
+      margin: 16px 0;
+      overflow: hidden;
+    }
+    
+    .progress-bar {
+      background: var(--driver);
+      height: 100%;
+      border-radius: 30px;
+      transition: width 0.5s;
+    }
+    
+    /* Duration Picker */
+    .duration-presets {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    
+    .duration-btn {
+      padding: 8px 16px;
+      background: #f1f5f9;
+      border-radius: 30px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .duration-btn:hover {
+      background: #e2e8f0;
+    }
+    
+    .duration-btn.selected {
+      background: var(--route);
+      color: white;
+    }
+    
+    /* Parent Dashboard */
+    .parent-child-card {
+      background: white;
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-top: 4px solid var(--parent);
+    }
+    
+    .child-selector {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    
+    .child-tab {
+      padding: 12px 24px;
+      background: #f1f5f9;
+      border-radius: 40px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .child-tab.active {
+      background: var(--parent);
+      color: white;
+    }
+    
+    .status-chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 16px;
+      border-radius: 40px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      font-size: 0.85rem;
+    }
+    
+    .push-toggle {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      background: #f0f9ff;
+      border-radius: 12px;
+      border-left: 4px solid var(--info);
+    }
+    
+    /* Mobile Responsive */
+    @media (max-width: 768px) {
+      .header-bar {
+        flex-direction: column;
+        text-align: center;
+      }
+      
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .driver-student-card .row {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      
+      button {
+        width: 100%;
+      }
+    }
+  </style>
