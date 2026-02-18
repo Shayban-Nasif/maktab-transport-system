@@ -624,8 +624,7 @@ window.markEvent = async (sid, sName, eventType, historyField) => {
         
         await StudentService.update(sid, updates);
         
-        // Update history
-        const { HistoryService } = await import('../services/firestore.js');
+        // Update history - now using imported HistoryService
         await HistoryService.update(sid, sName, historyField, timeStr);
         
         // Add event
