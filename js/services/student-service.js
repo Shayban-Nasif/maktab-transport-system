@@ -1,8 +1,18 @@
 // js/services/student-service.js
 import { db } from '../config/firebase.js';
 import { 
-    collection, doc, updateDoc, getDoc, getDocs,
-    query, where, serverTimestamp 
+    collection, 
+    doc, 
+    setDoc, 
+    updateDoc, 
+    getDoc, 
+    getDocs, 
+    query, 
+    where, 
+    serverTimestamp,
+    addDoc,
+    deleteDoc,
+    writeBatch
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 export const StudentService = {
@@ -14,6 +24,22 @@ export const StudentService = {
             updatedAt: serverTimestamp()
         };
         return await updateDoc(studentRef, data);
+    },
+    
+    // Create student
+    create: async (studentData) => {
+        const data = {
+            ...studentData,
+            status: "AWAITING",
+            stopOrder: null,
+            minsAM: null,
+            minsPM: null,
+            doneAM: false,
+            donePM: false,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        };
+        return await addDoc(collection(db, "students"), data);
     },
     
     // Get student by ID
@@ -40,5 +66,36 @@ export const StudentService = {
             status: "LEAVE",
             leaveAppliedAt: serverTimestamp()
         });
+    },
+    
+    // Set custom location override
+    setLocationOverride: async (studentId, location) => {
+        const today = new Date().toLocaleDateString('en-CA');
+        const overrideRef = doc(db, "students", studentId, "overrides", today);
+        
+        return await setDoc(overrideRef, {
+            pickupLoc: location,
+            dropoffLoc: location,
+            requestedAt: serverTimestamp(),
+            approved: false
+        });
+    },
+    
+    // Delete student
+    delete: async (studentId) => {
+        return await deleteDoc(doc(db, "students", studentId));
+    },
+    
+    // Reset all students for new day
+    resetAll: async () => {
+        const batch = writeBatch(db);
+        const snap = await getDocs(collection(db, "students"));
+        snap.forEach(d => batch.update(d.ref, { 
+            status: "AWAITING", 
+            doneAM: false, 
+            donePM: false,
+            updatedAt: serverTimestamp()
+        }));
+        return await batch.commit();
     }
 };
