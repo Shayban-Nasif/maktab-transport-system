@@ -89,12 +89,17 @@ async function loadRoutesAndDrivers() {
     });
 }
 
-// Render dashboard based on role
+// In your app.js, update the renderDashboard function:
+
 function renderDashboard(user) {
     document.getElementById('loginSection').classList.add('hidden');
     document.getElementById('dashboardSection').classList.remove('hidden');
     
     const target = document.getElementById('dynamicContent');
+    
+    console.log('Rendering dashboard for role:', user.role);
+    console.log('Routes loaded:', routesList.length);
+    console.log('Drivers loaded:', Object.keys(driverMap).length);
     
     switch(user.role) {
         case 'admin':
