@@ -1,8 +1,8 @@
-// Parent panel module
+// js/panels/parent-panel.js
 import { db } from '../config/firebase.js';
 import { 
-    collection, query, where, onSnapshot, doc, 
-    updateDoc, orderBy, limit 
+    collection, doc, query, where, onSnapshot, 
+    getDoc, orderBy, limit 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { escapeHtml, showToast, confirmAction } from '../utils/helpers.js';
 import { computeEtaForStudentFromDocs } from '../utils/eta-calculator.js';
@@ -10,26 +10,31 @@ import { todayISO, formatTime, defaultSession } from '../utils/date-time.js';
 import { StudentService, NotificationService } from '../services/firestore.js';
 import { requestNotificationPermission } from '../services/notifications.js';
 
-// State for current parent view
+// State
 let childrenList = [];
 let currentChildId = null;
-let unsubscribers = [];
-let currentUser = null;
+let currentUserUid = null;
+let routesList = [];
+let driverMap = {};
+let unsubscribers = {};
 
-export function renderParent(target, uid, routesList, driverMap) {
-    currentUser = { uid };
+export function renderParent(target, uid, routes, drivers) {
+    console.log('🎯 renderParent called with uid:', uid);
+    console.log('Routes received:', routes);
+    console.log('Drivers received:', drivers);
     
-    // Clear any existing listeners
-    clearParentSubs();
+    currentUserUid = uid;
+    routesList = routes;
+    driverMap = drivers;
     
     // Initial render
     target.innerHTML = getParentHTML();
     
     // Load children for this parent
-    loadChildren(uid, routesList, driverMap);
+    loadChildren();
     
     // Load notifications
-    loadNotifications(uid);
+    loadNotifications();
     
     // Check notification permission
     checkNotificationPermission();
@@ -39,7 +44,7 @@ function getParentHTML() {
     return `
         <div class="parent-header">
             <h2><i class="fas fa-users"></i> My Children</h2>
-            <div class="notification-badge" id="notificationBell">
+            <div class="notification-badge" id="notificationBell" onclick="window.openNotifications()">
                 <i class="fas fa-bell"></i>
                 <span class="count" id="notificationCount">0</span>
             </div>
@@ -47,16 +52,20 @@ function getParentHTML() {
 
         <!-- Notification Permission Banner -->
         <div id="notificationBanner" class="alert alert-warning" style="display:none; margin-bottom:20px;">
-            <div style="display:flex; align-items:center; justify-content:space-between;">
-                <span>📱 Get real-time updates about your child's transportation</span>
-                <button onclick="window.enableNotifications()" class="btn-primary">
+            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+                <span><i class="fas fa-bell"></i> Get real-time updates about your child's transportation</span>
+                <button onclick="window.enableNotifications()" class="btn-primary btn-sm">
                     Enable Notifications
                 </button>
             </div>
         </div>
 
         <!-- Child Selector -->
-        <div id="childSelector" class="child-selector"></div>
+        <div id="childSelector" class="child-selector">
+            <div style="text-align:center; width:100%; padding:20px;">
+                <i class="fas fa-spinner fa-spin"></i> Loading children...
+            </div>
+        </div>
 
         <!-- Child Details Container -->
         <div id="childDetailsContainer"></div>
@@ -74,48 +83,60 @@ function getParentHTML() {
     `;
 }
 
-function loadChildren(uid, routesList, driverMap) {
+function loadChildren() {
+    console.log('Loading children for parent:', currentUserUid);
+    
     const childrenQuery = query(
         collection(db, "students"), 
-        where("parentUid", "==", uid)
+        where("parentUid", "==", currentUserUid)
     );
     
     onSnapshot(childrenQuery, (snap) => {
+        console.log('Children loaded:', snap.size);
+        
         childrenList = snap.docs.map(d => ({ 
             id: d.id, 
             ...d.data() 
         }));
         
         if (childrenList.length === 0) {
-            document.getElementById('childDetailsContainer').innerHTML = `
-                <div class="card" style="text-align:center; padding:40px;">
-                    <div class="empty-state">
-                        <div class="icon">👶</div>
-                        <h3>No Children Found</h3>
-                        <p class="text-muted">Please contact the school to link your children.</p>
-                    </div>
+            document.getElementById('childSelector').innerHTML = `
+                <div class="card" style="text-align:center; padding:30px; width:100%;">
+                    <i class="fas fa-child" style="font-size:48px; color:var(--gray-400);"></i>
+                    <h3 style="margin-top:16px;">No Children Found</h3>
+                    <p class="text-muted">Please contact the school to link your children.</p>
                 </div>
             `;
+            document.getElementById('childDetailsContainer').innerHTML = '';
             return;
         }
         
         // Render child selector
-        renderChildSelector(childrenList);
+        renderChildSelector();
         
         // Select first child by default
         if (!currentChildId || !childrenList.find(c => c.id === currentChildId)) {
             selectChild(childrenList[0].id);
         }
         
-        // Update notification badge with unread count
+        // Update notification badge
         updateNotificationBadge();
+        
+    }, (error) => {
+        console.error('Error loading children:', error);
+        document.getElementById('childSelector').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle"></i>
+                Error loading children: ${error.message}
+            </div>
+        `;
     });
 }
 
-function renderChildSelector(children) {
+function renderChildSelector() {
     const selector = document.getElementById('childSelector');
     
-    selector.innerHTML = children.map((child, index) => {
+    selector.innerHTML = childrenList.map((child) => {
         const isActive = child.id === currentChildId;
         const leaveIcon = child.status === 'LEAVE' ? '🚫' : '';
         
@@ -124,7 +145,7 @@ function renderChildSelector(children) {
                  onclick="window.selectChild('${child.id}')">
                 <i class="fas fa-child"></i> 
                 ${escapeHtml(child.name)}
-                ${leaveIcon ? `<span class="badge bg-danger">${leaveIcon}</span>` : ''}
+                ${leaveIcon ? `<span class="badge bg-danger" style="margin-left:5px;">${leaveIcon}</span>` : ''}
                 ${child.status === 'LEAVE' ? '<small>(On Leave)</small>' : ''}
             </div>
         `;
@@ -132,6 +153,7 @@ function renderChildSelector(children) {
 }
 
 function selectChild(childId) {
+    console.log('Selecting child:', childId);
     currentChildId = childId;
     
     // Update active tab
@@ -151,11 +173,14 @@ function selectChild(childId) {
 }
 
 function renderChildDetails(child) {
+    console.log('Rendering details for child:', child);
+    
     const container = document.getElementById('childDetailsContainer');
+    const route = routesList.find(r => r.id === child.routeId);
     
     container.innerHTML = `
         <div class="live-status-card">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px;">
                 <div>
                     <span class="status-label">${escapeHtml(child.name)}</span>
                     <div class="status-time" id="currentStatus_${child.id}">
@@ -163,28 +188,50 @@ function renderChildDetails(child) {
                     </div>
                 </div>
                 <div style="display:flex; gap:10px;">
-                    <select id="sessionSelect_${child.id}" class="form-select" style="width:auto;">
+                    <select id="sessionSelect_${child.id}" class="form-select" style="width:auto; min-width:120px;">
                         <option value="AM" ${defaultSession() === 'AM' ? 'selected' : ''}>☀️ AM Trip</option>
                         <option value="PM" ${defaultSession() === 'PM' ? 'selected' : ''}>🌙 PM Trip</option>
                     </select>
                     <button class="btn-outline btn-sm" onclick="window.refreshChildStatus('${child.id}')">
-                        🔄 Refresh
+                        <i class="fas fa-sync-alt"></i> Refresh
                     </button>
                 </div>
             </div>
             
             <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:15px; margin-top:20px;">
                 <div class="stat-box">
-                    <div class="label">ETA</div>
+                    <div class="label">ETA / Status</div>
                     <div class="value" id="eta_${child.id}">--:--</div>
                 </div>
                 <div class="stat-box">
-                    <div class="label">Trip Status</div>
+                    <div class="label">Trip</div>
                     <div class="value" id="tripStatus_${child.id}">Not Started</div>
                 </div>
                 <div class="stat-box">
-                    <div class="label">Driver</div>
-                    <div class="value" id="driverInfo_${child.id}">Loading...</div>
+                    <div class="label">Route</div>
+                    <div class="value" id="routeName_${child.id}">${route ? escapeHtml(route.name) : 'Not Assigned'}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Driver Information Card -->
+        <div class="card" style="margin:20px 0; background:linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);">
+            <h5 style="margin-bottom:15px;"><i class="fas fa-user"></i> Driver Information</h5>
+            <div id="driverInfo_${child.id}" style="display:grid; grid-template-columns:repeat(3,1fr); gap:15px;">
+                <div style="text-align:center;">
+                    <i class="fas fa-user-circle" style="font-size:24px; color:var(--gray-500);"></i>
+                    <div class="text-muted small">Name</div>
+                    <div id="driverName_${child.id}" class="fw-bold">Loading...</div>
+                </div>
+                <div style="text-align:center;">
+                    <i class="fas fa-phone" style="font-size:24px; color:var(--gray-500);"></i>
+                    <div class="text-muted small">Contact</div>
+                    <div id="driverPhone_${child.id}" class="fw-bold">Loading...</div>
+                </div>
+                <div style="text-align:center;">
+                    <i class="fas fa-bus" style="font-size:24px; color:var(--gray-500);"></i>
+                    <div class="text-muted small">Vehicle</div>
+                    <div id="driverVehicle_${child.id}" class="fw-bold">Loading...</div>
                 </div>
             </div>
         </div>
@@ -193,24 +240,24 @@ function renderChildDetails(child) {
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin:20px 0;">
             <div class="card" style="background:#f0f9ff;">
                 <div style="display:flex; align-items:center; gap:10px;">
-                    <i class="fas fa-map-marker-alt" style="color:#1a73e8; font-size:1.2rem;"></i>
+                    <i class="fas fa-map-marker-alt" style="color:var(--admin); font-size:1.2rem;"></i>
                     <div>
                         <div class="text-muted small">PICKUP LOCATION</div>
-                        <div id="pickupLoc_${child.id}">${escapeHtml(child.pickupLoc || child.address || '-')}</div>
+                        <div id="pickupLoc_${child.id}" style="font-weight:500;">${escapeHtml(child.pickupLoc || child.address || '-')}</div>
                         ${child.pickupLoc !== child.address ? 
-                            '<span class="badge bg-info">Custom</span>' : ''}
+                            '<span class="badge bg-info" style="margin-top:4px;">Custom Location</span>' : ''}
                     </div>
                 </div>
             </div>
             
             <div class="card" style="background:#fef2e0;">
                 <div style="display:flex; align-items:center; gap:10px;">
-                    <i class="fas fa-flag-checkered" style="color:#ff9800; font-size:1.2rem;"></i>
+                    <i class="fas fa-flag-checkered" style="color:var(--parent); font-size:1.2rem;"></i>
                     <div>
                         <div class="text-muted small">DROPOFF LOCATION</div>
-                        <div id="dropoffLoc_${child.id}">${escapeHtml(child.dropoffLoc || child.address || '-')}</div>
+                        <div id="dropoffLoc_${child.id}" style="font-weight:500;">${escapeHtml(child.dropoffLoc || child.address || '-')}</div>
                         ${child.dropoffLoc !== child.address ? 
-                            '<span class="badge bg-info">Custom</span>' : ''}
+                            '<span class="badge bg-info" style="margin-top:4px;">Custom Location</span>' : ''}
                     </div>
                 </div>
             </div>
@@ -218,9 +265,8 @@ function renderChildDetails(child) {
 
         <!-- Timeline -->
         <div class="card">
-            <h5><i class="fas fa-history"></i> Today's Journey</h5>
+            <h5 style="margin-bottom:15px;"><i class="fas fa-history"></i> Today's Journey</h5>
             <div class="timeline" id="timeline_${child.id}">
-                <!-- Timeline will be populated dynamically -->
                 <div class="timeline-item">
                     <div class="timeline-time">--:--</div>
                     <div class="timeline-title">Waiting for trip to start</div>
@@ -229,15 +275,15 @@ function renderChildDetails(child) {
         </div>
 
         <!-- Action Buttons -->
-        <div style="display:flex; gap:10px; margin-top:20px;">
+        <div style="display:flex; gap:10px; margin-top:20px; flex-wrap:wrap;">
             <button class="btn-leave" onclick="window.requestLeave('${child.id}', '${escapeHtml(child.name)}')">
-                📅 Apply Leave
+                <i class="fas fa-calendar-times"></i> Apply Leave
             </button>
             <button class="btn-outline" onclick="window.requestCustomLocation('${child.id}')">
-                📍 Request Change
+                <i class="fas fa-map-pin"></i> Request Change
             </button>
             <button class="btn-outline" onclick="window.contactDriver('${child.id}')">
-                📞 Contact Driver
+                <i class="fas fa-phone"></i> Contact Driver
             </button>
         </div>
     `;
@@ -250,21 +296,35 @@ function setupChildListeners(child) {
     const sid = child.id;
     const sessionSelect = document.getElementById(`sessionSelect_${sid}`);
     
+    if (!sessionSelect) {
+        console.error('Session select not found for child:', sid);
+        return;
+    }
+    
     // Clear existing listeners for this child
     if (unsubscribers[sid]) {
-        unsubscribers[sid].forEach(u => u());
+        Object.values(unsubscribers[sid]).forEach(unsub => {
+            if (unsub) unsub();
+        });
     }
-    unsubscribers[sid] = [];
+    unsubscribers[sid] = {};
     
     // Function to load trip data for selected session
     const loadSessionData = (session) => {
+        console.log(`Loading ${session} data for child:`, child.name);
+        
         const routeId = child.routeId;
-        if (!routeId) return;
+        if (!routeId) {
+            console.log('No route assigned to child');
+            updateDriverInfo(sid, null, session);
+            return;
+        }
         
         const tripId = `${routeId}_${todayISO()}_${session}`;
+        console.log('Trip ID:', tripId);
         
         // Listen to trip document
-        const unsubTrip = onSnapshot(doc(db, "trips", tripId), (snap) => {
+        unsubscribers[sid].trip = onSnapshot(doc(db, "trips", tripId), (snap) => {
             const statusEl = document.getElementById(`tripStatus_${sid}`);
             if (statusEl) {
                 if (snap.exists()) {
@@ -275,37 +335,49 @@ function setupChildListeners(child) {
                     if (data.tripStartHM) {
                         updateETA(sid, session, data.tripStartHM);
                     }
+                    
+                    // Update driver info when trip starts
+                    updateDriverInfo(sid, routeId, session);
                 } else {
                     statusEl.textContent = 'Not Started';
                 }
             }
+        }, (error) => {
+            console.error('Trip listener error:', error);
         });
         
         // Listen to events for timeline
-        const unsubEvents = onSnapshot(
+        unsubscribers[sid].events = onSnapshot(
             query(collection(db, "trips", tripId, "events"), orderBy("timestamp", "asc")),
             (snap) => {
+                console.log(`Events loaded for ${session}:`, snap.size);
                 updateTimeline(sid, snap.docs.map(d => d.data()));
-                
-                // Also update driver info
-                updateDriverInfo(sid, session);
+            },
+            (error) => {
+                console.error('Events listener error:', error);
             }
         );
         
         // Listen to overrides for ETA
-        const unsubOverrides = onSnapshot(
+        unsubscribers[sid].overrides = onSnapshot(
             collection(db, "trips", tripId, "overrides"),
-            () => {
-                const tripDoc = doc(db, "trips", tripId);
-                getDoc(tripDoc).then(tripSnap => {
+            (oSnap) => {
+                const overrides = {};
+                oSnap.forEach(d => {
+                    overrides[d.id] = d.data()?.mins ?? null;
+                });
+                
+                // Recalculate ETA when overrides change
+                getDoc(doc(db, "trips", tripId)).then(tripSnap => {
                     if (tripSnap.exists() && tripSnap.data().tripStartHM) {
-                        updateETA(sid, session, tripSnap.data().tripStartHM);
+                        updateETAWithOverrides(sid, session, tripSnap.data().tripStartHM, overrides);
                     }
                 });
             }
         );
         
-        unsubscribers[sid].push(unsubTrip, unsubEvents, unsubOverrides);
+        // Initial driver info load
+        updateDriverInfo(sid, routeId, session);
     };
     
     // Load initial session
@@ -313,6 +385,7 @@ function setupChildListeners(child) {
     
     // Handle session change
     sessionSelect.addEventListener('change', (e) => {
+        console.log('Session changed to:', e.target.value);
         loadSessionData(e.target.value);
     });
 }
@@ -335,42 +408,96 @@ async function updateETA(sid, session, tripStartHM) {
         sid,
         tripStartHM,
         docs,
-        window.overridesMap || {},
-        [], // pickupEvents - would need to be passed
-        []  // dropoffEvents - would need to be passed
+        {}, // overrides
+        [], // pickupEvents
+        []  // dropoffEvents
     );
     
     const etaEl = document.getElementById(`eta_${sid}`);
     if (etaEl) etaEl.textContent = eta;
 }
 
-async function updateDriverInfo(sid, session) {
+async function updateETAWithOverrides(sid, session, tripStartHM, overrides) {
     const child = childrenList.find(c => c.id === sid);
     if (!child?.routeId) return;
     
-    // Get route info
-    const routeDoc = await getDoc(doc(db, "routes", child.routeId));
-    if (!routeDoc.exists()) return;
+    const studentsQuery = query(
+        collection(db, "students"), 
+        where("routeId", "==", child.routeId)
+    );
     
-    const route = routeDoc.data();
-    const driverUid = session === 'AM' ? route.driverUidAM : route.driverUidPM;
+    const snap = await getDocs(studentsQuery);
+    const docs = snap.docs;
     
-    if (!driverUid) {
-        document.getElementById(`driverInfo_${sid}`).textContent = 'Not Assigned';
+    const eta = computeEtaForStudentFromDocs(
+        session,
+        sid,
+        tripStartHM,
+        docs,
+        overrides,
+        [], // pickupEvents
+        []  // dropoffEvents
+    );
+    
+    const etaEl = document.getElementById(`eta_${sid}`);
+    if (etaEl) etaEl.textContent = eta;
+}
+
+async function updateDriverInfo(sid, routeId, session) {
+    console.log('Updating driver info for:', { sid, routeId, session });
+    
+    if (!routeId) {
+        document.getElementById(`driverName_${sid}`).textContent = 'No Route';
+        document.getElementById(`driverPhone_${sid}`).textContent = 'N/A';
+        document.getElementById(`driverVehicle_${sid}`).textContent = 'N/A';
         return;
     }
     
-    // Get driver info
-    const driverQuery = query(collection(db, "users"), where("uid", "==", driverUid));
-    const driverSnap = await getDocs(driverQuery);
-    
-    if (!driverSnap.empty) {
-        const driver = driverSnap.docs[0].data();
-        document.getElementById(`driverInfo_${sid}`).innerHTML = `
-            ${escapeHtml(driver.fullName)}<br>
-            <small>📞 ${escapeHtml(driver.phone || 'N/A')}</small><br>
-            <small>🚐 ${escapeHtml(driver.assignedCar || 'N/A')}</small>
-        `;
+    try {
+        // Get route info
+        const routeDoc = await getDoc(doc(db, "routes", routeId));
+        if (!routeDoc.exists()) {
+            console.log('Route not found');
+            return;
+        }
+        
+        const route = routeDoc.data();
+        const driverUid = session === 'AM' ? route.driverUidAM : route.driverUidPM;
+        
+        console.log('Driver UID for this session:', driverUid);
+        
+        if (!driverUid) {
+            document.getElementById(`driverName_${sid}`).textContent = 'Not Assigned';
+            document.getElementById(`driverPhone_${sid}`).textContent = 'N/A';
+            document.getElementById(`driverVehicle_${sid}`).textContent = 'N/A';
+            return;
+        }
+        
+        // Get driver info from driverMap or Firestore
+        let driver = driverMap[driverUid];
+        
+        if (!driver) {
+            // Try to fetch from Firestore
+            const driverQuery = query(collection(db, "users"), where("uid", "==", driverUid));
+            const driverSnap = await getDocs(driverQuery);
+            
+            if (!driverSnap.empty) {
+                driver = driverSnap.docs[0].data();
+            }
+        }
+        
+        if (driver) {
+            console.log('Driver found:', driver);
+            document.getElementById(`driverName_${sid}`).textContent = driver.fullName || 'Unknown';
+            document.getElementById(`driverPhone_${sid}`).textContent = driver.phone || 'N/A';
+            document.getElementById(`driverVehicle_${sid}`).textContent = driver.assignedCar || 'N/A';
+        } else {
+            document.getElementById(`driverName_${sid}`).textContent = 'Unknown';
+            document.getElementById(`driverPhone_${sid}`).textContent = 'N/A';
+            document.getElementById(`driverVehicle_${sid}`).textContent = 'N/A';
+        }
+    } catch (error) {
+        console.error('Error loading driver info:', error);
     }
 }
 
@@ -426,22 +553,25 @@ function updateTimeline(sid, events) {
                 break;
         }
         
+        const isForThisChild = event.studentId === sid;
+        
         return `
-            <div class="timeline-item ${event.studentId === sid ? 'highlight' : ''}">
+            <div class="timeline-item ${isForThisChild ? 'highlight' : ''}">
                 <div class="timeline-time">${time}</div>
                 <div class="timeline-title">
                     ${icon} ${title} 
-                    ${event.studentName ? `- ${escapeHtml(event.studentName)}` : ''}
+                    ${event.studentName && !isForThisChild ? `- ${escapeHtml(event.studentName)}` : ''}
+                    ${isForThisChild ? ' (Your Child)' : ''}
                 </div>
             </div>
         `;
     }).join('');
 }
 
-function loadNotifications(uid) {
+function loadNotifications() {
     const notifQuery = query(
         collection(db, "notifications"),
-        where("uid", "==", uid),
+        where("uid", "==", currentUserUid),
         orderBy("timestamp", "desc"),
         limit(50)
     );
@@ -449,6 +579,8 @@ function loadNotifications(uid) {
     onSnapshot(notifQuery, (snap) => {
         renderNotifications(snap.docs);
         updateNotificationBadge();
+    }, (error) => {
+        console.error('Error loading notifications:', error);
     });
 }
 
@@ -458,7 +590,7 @@ function renderNotifications(docs) {
     
     if (docs.length === 0) {
         listEl.innerHTML = `
-            <div style="text-align:center; padding:30px; color:#64748b;">
+            <div style="text-align:center; padding:30px; color:var(--gray-500);">
                 <i class="fas fa-bell-slash" style="font-size:2rem; margin-bottom:10px;"></i>
                 <p>No notifications yet</p>
             </div>
@@ -479,23 +611,21 @@ function renderNotifications(docs) {
                     <small class="text-muted">${time}</small>
                 </div>
                 <div style="margin-top:5px;">${escapeHtml(notif.body || '')}</div>
-                ${!notif.read ? '<small class="badge bg-primary">New</small>' : ''}
+                ${!notif.read ? '<small class="badge bg-primary" style="margin-top:5px;">New</small>' : ''}
             </div>
         `;
     }).join('');
 }
 
-function updateNotificationBadge() {
+async function updateNotificationBadge() {
     const notifQuery = query(
         collection(db, "notifications"),
-        where("uid", "==", currentUser.uid),
+        where("uid", "==", currentUserUid),
         where("read", "==", false)
     );
     
-    getDocs(notifQuery).then(snap => {
-        const count = snap.size;
-        document.getElementById('notificationCount').textContent = count;
-    });
+    const snap = await getDocs(notifQuery);
+    document.getElementById('notificationCount').textContent = snap.size;
 }
 
 function checkNotificationPermission() {
@@ -505,14 +635,7 @@ function checkNotificationPermission() {
     }
 }
 
-function clearParentSubs() {
-    Object.values(unsubscribers).forEach(list => {
-        list.forEach(unsub => unsub());
-    });
-    unsubscribers = [];
-}
-
-// ============== GLOBAL FUNCTIONS FOR PARENT ==============
+// ============== GLOBAL FUNCTIONS ==============
 
 window.selectChild = (childId) => {
     selectChild(childId);
@@ -527,11 +650,15 @@ window.refreshChildStatus = (childId) => {
 };
 
 window.enableNotifications = async () => {
-    const success = await requestNotificationPermission(currentUser);
+    const success = await requestNotificationPermission({ uid: currentUserUid });
     if (success) {
         document.getElementById('notificationBanner').style.display = 'none';
         showToast("✅ Notifications enabled!", "success");
     }
+};
+
+window.openNotifications = () => {
+    document.getElementById('notificationList').scrollIntoView({ behavior: 'smooth' });
 };
 
 window.requestLeave = async (studentId, studentName) => {
@@ -539,25 +666,30 @@ window.requestLeave = async (studentId, studentName) => {
     
     try {
         await StudentService.markLeave(studentId);
-        showToast(`Leave request submitted for ${studentName}`, "success");
+        showToast(`✅ Leave request submitted for ${studentName}`, "success");
     } catch (error) {
         console.error("Leave request error:", error);
         showToast("Failed to submit leave request", "error");
     }
 };
 
-window.requestCustomLocation = (studentId) => {
+window.requestCustomLocation = async (studentId) => {
     const newLocation = prompt("Enter special pickup/dropoff location for today:");
     if (newLocation) {
-        // Store in temporary overrides
-        const today = todayISO();
-        setDoc(doc(db, "students", studentId, "overrides", today), {
-            pickupLoc: newLocation,
-            dropoffLoc: newLocation,
-            requestedAt: new Date(),
-            approved: false
-        });
-        showToast("Location change request submitted", "success");
+        try {
+            const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
+            const today = todayISO();
+            await setDoc(doc(db, "students", studentId, "overrides", today), {
+                pickupLoc: newLocation,
+                dropoffLoc: newLocation,
+                requestedAt: new Date(),
+                approved: false
+            });
+            showToast("✅ Location change request submitted", "success");
+        } catch (error) {
+            console.error("Location request error:", error);
+            showToast("Failed to submit request", "error");
+        }
     }
 };
 
@@ -570,27 +702,40 @@ window.contactDriver = async (studentId) => {
     
     const session = document.getElementById(`sessionSelect_${studentId}`)?.value || defaultSession();
     
-    const routeDoc = await getDoc(doc(db, "routes", child.routeId));
-    if (!routeDoc.exists()) return;
-    
-    const route = routeDoc.data();
-    const driverUid = session === 'AM' ? route.driverUidAM : route.driverUidPM;
-    
-    if (!driverUid) {
-        showToast("No driver assigned for this session", "error");
-        return;
-    }
-    
-    const driverQuery = query(collection(db, "users"), where("uid", "==", driverUid));
-    const driverSnap = await getDocs(driverQuery);
-    
-    if (!driverSnap.empty) {
-        const driver = driverSnap.docs[0].data();
-        if (driver.phone) {
+    try {
+        const routeDoc = await getDoc(doc(db, "routes", child.routeId));
+        if (!routeDoc.exists()) {
+            showToast("Route information not found", "error");
+            return;
+        }
+        
+        const route = routeDoc.data();
+        const driverUid = session === 'AM' ? route.driverUidAM : route.driverUidPM;
+        
+        if (!driverUid) {
+            showToast("No driver assigned for this session", "error");
+            return;
+        }
+        
+        // Try to get from driverMap first
+        let driver = driverMap[driverUid];
+        
+        if (!driver) {
+            const driverQuery = query(collection(db, "users"), where("uid", "==", driverUid));
+            const driverSnap = await getDocs(driverQuery);
+            if (!driverSnap.empty) {
+                driver = driverSnap.docs[0].data();
+            }
+        }
+        
+        if (driver?.phone) {
             window.location.href = `tel:${driver.phone}`;
         } else {
             showToast("Driver phone number not available", "error");
         }
+    } catch (error) {
+        console.error("Error contacting driver:", error);
+        showToast("Error contacting driver", "error");
     }
 };
 
@@ -600,6 +745,6 @@ window.markNotificationRead = async (notificationId) => {
 };
 
 window.markAllNotificationsRead = async () => {
-    await NotificationService.markAllAsRead(currentUser.uid);
+    await NotificationService.markAllAsRead(currentUserUid);
     showToast("All notifications marked as read", "success");
 };
