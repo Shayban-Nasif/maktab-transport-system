@@ -7,7 +7,13 @@ import { renderAdmin } from './panels/admin-panel.js';
 import { renderDriver } from './panels/driver-panel.js';
 import { renderParent } from './panels/parent-panel.js';
 import { showToast } from './utils/helpers.js';
+// In your app.js, add this near the bottom where you define global functions
+import { TripService } from './services/trip-service.js';
+import { StudentService } from './services/student-service.js';
 
+// Make services available globally for onclick handlers
+window.TripService = TripService;
+window.StudentService = StudentService;
 // Global state
 let routesList = [];
 let driverMap = {};
