@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
+    <meta name="theme-color" content="#1a73e8">
+    <meta name="description" content="RS Transport Solution - School Transportation Management System">
+    
+    <title>RS Transport Solution - Iqra International School</title>
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <!-- Main Styles -->
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/admin.css">
+    <link rel="stylesheet" href="css/driver.css">
+    <link rel="stylesheet" href="css/parent.css">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="assets/icons/icon-72x72.png">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header-bar">
+        <div class="header-titles">
+            <h1><i class="fas fa-bus"></i> RS TRANSPORT SOLUTION</h1>
+            <p class="text-light small">Iqra International School Tokyo - Smart Transport System</p>
+        </div>
+        
+        <div id="userInfo" class="hidden">
+            <div class="user-profile">
+                <div id="userDisplayName" class="fw-bold"></div>
+                <div id="portalLabel" class="portal-tag"></div>
+                <div class="connection-status" id="connectionStatus">
+                    <i class="fas fa-wifi"></i> <span id="statusText">Connected</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Login Section -->
+        <div id="loginSection" class="login-container">
+            <div class="login-card">
+                <div class="login-header">
+                    <i class="fas fa-bus fa-3x"></i>
+                    <h2>Transport System Login</h2>
+                    <p class="text-muted">Iqra International School Tokyo</p>
+                </div>
+                
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="email">
+                            <i class="fas fa-envelope"></i> Email
+                        </label>
+                        <input type="email" id="email" placeholder="Enter your email" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="password">
+                            <i class="fas fa-lock"></i> Password
+                        </label>
+                        <input type="password" id="password" placeholder="Enter your password" required>
+                    </div>
+                    
+                    <button type="submit" class="btn-login">
+                        <i class="fas fa-sign-in-alt"></i> Login
+                    </button>
+                </form>
+                
+                <div class="login-footer">
+                    <small class="text-muted">For assistance, contact school administration</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard Section -->
+        <div id="dashboardSection" class="hidden">
+            <!-- Dashboard Header -->
+            <div class="dashboard-header">
+                <div>
+                    <button onclick="window.handleRefresh()" class="btn-outline" id="refreshBtn">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                    <span id="lastRefreshTime" class="refresh-time">Last updated: Just now</span>
+                </div>
+                
+                <button onclick="window.handleLogout()" class="btn-logout">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+
+            <!-- Push Notification Banner (for parents) -->
+            <div id="pushPermissionBanner" class="notification-banner hidden">
+                <div class="banner-content">
+                    <i class="fas fa-bell"></i>
+                    <span>Get real-time notifications about your child's transportation</span>
+                    <button onclick="window.requestNotificationPermission()" class="btn-primary btn-sm">
+                        <i class="fas fa-bell"></i> Enable
+                    </button>
+                </div>
+            </div>
+
+            <!-- Dynamic Content (Admin/Driver/Parent panels load here) -->
+            <div id="dynamicContent"></div>
+        </div>
+    </div>
+
+    <!-- Loading Spinner (hidden by default) -->
+    <div id="loadingSpinner" class="loading-spinner hidden">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Main Application Script (ES Module) -->
+    <script type="module">
+        // Import Firebase and initialize
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getMessaging } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging.js";
+
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCS163x5b5-MJXxJGwbjE0IlO7R58CkJMg",
+            authDomain: "maktab-transport.firebaseapp.com",
+            projectId: "maktab-transport",
+            storageBucket: "maktab-transport.firebasestorage.app",
+            messagingSenderId: "575357634901",
+            appId: "1:575357634901:web:4918fb77b0c21965af07dc"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        // Initialize messaging if supported
+        let messaging = null;
+        try {
+            messaging = getMessaging(app);
+            console.log("✅ Firebase Messaging initialized");
+        } catch (e) {
+            console.log("ℹ️ Firebase Messaging not available:", e);
+        }
+
+        // Export for use in modules
+        export { app, auth, db, messaging };
+
+        // Import application modules
+        import { initAuth, handleLogout } from './js/auth/auth.js';
+        import { showToast } from './js/utils/helpers.js';
+        import { requestNotificationPermission } from './js/services/notifications.js';
+        import { renderAdmin } from './js/panels/admin-panel.js';
+        import { renderDriver } from './js/panels/driver-panel.js';
+        import { renderParent } from './js/panels/parent-panel.js';
+
+        // Global state
+        let routesList = [];
+        let driverMap = {};
+        let currentUser = null;
+
+        // Initialize app when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 RS Transport Solution initializing...');
+            
+            // Set up login form
+            const loginForm = document.getElementById('loginForm');
+            if (loginForm) {
+                loginForm.addEventListener('submit', handleLogin);
+            }
+            
+            // Check auth state
+            onAuthStateChanged(auth, handleAuthStateChange);
+            
+            // Start connection monitoring
+            startConnectionMonitor();
+        });
+
+        // Handle login
+        async function handleLogin(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                showLoading(true);
+                const { signInWithEmailAndPassword } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js");
+                await signInWithEmailAndPassword(auth, email, password);
+                showToast("Login successful!", "success");
+            } catch (error) {
+                console.error("Login error:", error);
+                let message = "Login failed";
+                if (error.code === 'auth/user-not-found') message = "User not found";
+                else if (error.code === 'auth/wrong-password') message = "Wrong password";
+                else if (error.code === 'auth/too-many-requests') message = "Too many attempts";
+                showToast(message, "error");
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Handle auth state changes
+        async function handleAuthStateChange(user) {
+            if (!user) {
+                showLoginScreen();
+                return;
+            }
+
+            try {
+                showLoading(true);
+                
+                // Get user profile
+                const { collection, query, where, getDocs } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
+                const userQuery = query(collection(db, "users"), where("uid", "==", user.uid));
+                const userSnap = await getDocs(userQuery);
+                
+                if (userSnap.empty) {
+                    showToast("User profile not found", "error");
+                    return;
+                }
+
+                currentUser = { id: userSnap.docs[0].id, ...userSnap.docs[0].data() };
+                
+                // Update UI
+                updateUserInfo(currentUser);
+                
+                // Load routes and drivers
+                await loadRoutesAndDrivers();
+                
+                // Render appropriate dashboard
+                renderDashboard(currentUser);
+                
+                // Show notification banner for parents
+                if (currentUser.role === 'parent' && Notification.permission !== 'granted') {
+                    document.getElementById('pushPermissionBanner').classList.remove('hidden');
+                }
+                
+            } catch (error) {
+                console.error("Auth state error:", error);
+                showToast("Error loading user data", "error");
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Load routes and drivers
+        async function loadRoutesAndDrivers() {
+            const { collection, onSnapshot, query, where } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
+            
+            return new Promise((resolve) => {
+                // Load routes
+                onSnapshot(collection(db, "routes"), (rSnap) => {
+                    routesList = rSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+                    
+                    // Load drivers
+                    onSnapshot(query(collection(db, "users"), where("role", "==", "driver")), (dSnap) => {
+                        driverMap = {};
+                        dSnap.forEach(d => { driverMap[d.data().uid] = d.data(); });
+                        resolve();
+                    });
+                });
+            });
+        }
+
+        // Update user info in header
+        function updateUserInfo(user) {
+            document.getElementById('userDisplayName').innerText = user.fullName || user.email;
+            const portalLabel = document.getElementById('portalLabel');
+            portalLabel.innerText = user.role.charAt(0).toUpperCase() + user.role.slice(1);
+            portalLabel.className = `portal-tag bg-${user.role}`;
+            document.getElementById('userInfo').classList.remove('hidden');
+        }
+
+        // Show login screen
+        function showLoginScreen() {
+            document.getElementById('loginSection').classList.remove('hidden');
+            document.getElementById('dashboardSection').classList.add('hidden');
+            document.getElementById('userInfo').classList.add('hidden');
+        }
+
+        // Render dashboard based on role
+        function renderDashboard(user) {
+            document.getElementById('loginSection').classList.add('hidden');
+            document.getElementById('dashboardSection').classList.remove('hidden');
+            
+            const target = document.getElementById('dynamicContent');
+            
+            switch(user.role) {
+                case 'admin':
+                    renderAdmin(target, routesList, driverMap);
+                    break;
+                case 'driver':
+                    renderDriver(target, user.uid, routesList, driverMap);
+                    break;
+                case 'parent':
+                    renderParent(target, user.uid, routesList, driverMap);
+                    break;
+                default:
+                    showToast("Invalid user role", "error");
+            }
+        }
+
+        // Show/hide loading spinner
+        function showLoading(show) {
+            const spinner = document.getElementById('loadingSpinner');
+            if (show) {
+                spinner.classList.remove('hidden');
+            } else {
+                spinner.classList.add('hidden');
+            }
+        }
+
+        // Monitor connection status
+        function startConnectionMonitor() {
+            const updateConnectionStatus = () => {
+                const statusEl = document.getElementById('statusText');
+                if (statusEl) {
+                    const isOnline = navigator.onLine;
+                    statusEl.innerText = isOnline ? 'Connected' : 'Offline';
+                    statusEl.style.color = isOnline ? '#28a745' : '#dc3545';
+                }
+            };
+            
+            window.addEventListener('online', updateConnectionStatus);
+            window.addEventListener('offline', updateConnectionStatus);
+            updateConnectionStatus();
+            setInterval(updateConnectionStatus, 5000);
+        }
+
+        // Update last refresh time
+        function updateLastRefreshTime() {
+            const el = document.getElementById('lastRefreshTime');
+            if (el) {
+                el.innerText = `Last updated: ${new Date().toLocaleTimeString()}`;
+            }
+        }
+
+        // ============== GLOBAL FUNCTIONS ==============
+        
+        window.handleLogout = async () => {
+            try {
+                await handleLogout();
+                showToast("Logged out successfully", "success");
+            } catch (error) {
+                showToast("Logout failed", "error");
+            }
+        };
+
+        window.handleRefresh = () => {
+            updateLastRefreshTime();
+            if (currentUser) {
+                renderDashboard(currentUser);
+                showToast("Refreshed", "success");
+            }
+        };
+
+        window.requestNotificationPermission = async () => {
+            const success = await requestNotificationPermission(currentUser);
+            if (success) {
+                document.getElementById('pushPermissionBanner').classList.add('hidden');
+            }
+        };
+
+        // Toast notification system
+        window.showToast = showToast;
+
+        // Initialize last refresh time updater
+        setInterval(updateLastRefreshTime, 30000);
+    </script>
+
+    <style>
+        /* Additional inline styles for critical components */
+        .login-container {
+            min-height: 80vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-card {
+            background: white;
+            border-radius: 24px;
+            padding: 40px;
+            max-width: 400px;
+            width: 100%;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .login-header i {
+            color: var(--admin);
+            margin-bottom: 15px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #475569;
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 14px;
+            background: var(--admin);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-login:hover {
+            background: #1557b0;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(26,115,232,0.2);
+        }
+
+        .btn-logout {
+            padding: 10px 20px;
+            background: #475569;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-logout:hover {
+            background: #334155;
+        }
+
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+        }
+
+        .refresh-time {
+            margin-left: 15px;
+            color: #64748b;
+            font-size: 0.85rem;
+        }
+
+        .notification-banner {
+            background: #f0f9ff;
+            border-left: 4px solid var(--info);
+            border-radius: 12px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+        }
+
+        .banner-content {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .banner-content i {
+            color: var(--info);
+            font-size: 1.2rem;
+        }
+
+        .loading-spinner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--admin);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+        }
+
+        .toast {
+            background: white;
+            border-radius: 12px;
+            padding: 15px 20px;
+            margin-bottom: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideIn 0.3s ease;
+            max-width: 350px;
+        }
+
+        .toast.success { border-left: 4px solid #28a745; }
+        .toast.error { border-left: 4px solid #dc3545; }
+        .toast.warning { border-left: 4px solid #ffc107; }
+        .toast.info { border-left: 4px solid #17a2b8; }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .user-profile {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 5px;
+        }
+
+        .connection-status {
+            font-size: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        /* Utility classes */
+        .text-muted { color: #64748b; }
+        .text-light { color: #94a3b8; }
+        .fw-bold { font-weight: 600; }
+        .small { font-size: 0.85rem; }
+        .hidden { display: none !important; }
+    </style>
+</body>
+</html>
