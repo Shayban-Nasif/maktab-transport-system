@@ -1,8 +1,9 @@
+// js/panels/admin-panel.js
 // Admin panel module
 import { db } from '../config/firebase.js';
 import { 
     collection, onSnapshot, query, orderBy, limit, 
-    addDoc, updateDoc, deleteDoc, writeBatch, getDocs 
+    addDoc, updateDoc, deleteDoc, writeBatch, getDocs, doc, setDoc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { escapeHtml, showToast, confirmAction } from '../utils/helpers.js';
@@ -222,7 +223,7 @@ function renderRouteRows(routesList, driverMap) {
                 <td><b>${escapeHtml(r.name)}</b></td>
                 <td><select onchange="window.setRouteDriver('${r.id}','AM', this.value)">${amOptions}</select></td>
                 <td><select onchange="window.setRouteDriver('${r.id}','PM', this.value)">${pmOptions}</select></td>
-                <td><button onclick="window.delDoc('routes','${r.id}')" class="btn-danger">🗑️</button></td>
+                <td><button onclick="window.delDoc('routes','${r.id}')" class="btn-danger btn-sm">🗑️</button></td>
             </tr>
         `;
     }).join('');
@@ -249,7 +250,8 @@ function setupAdminListeners(routesList, driverMap) {
             showToast("Route created!", "success");
             e.target.reset();
         } catch (error) {
-            showToast("Failed to create route", "error");
+            console.error("Route creation error:", error);
+            showToast("Failed to create route: " + error.message, "error");
         }
     });
     
@@ -261,66 +263,181 @@ function setupAdminListeners(routesList, driverMap) {
             return;
         }
         
+        const dName = document.getElementById('dName').value;
+        const dEmail = document.getElementById('dEmail').value;
+        const dPhone = document.getElementById('dPhone').value;
+        const dCar = document.getElementById('dCar').value;
+        const dPass = document.getElementById('dPass').value;
+        
         try {
+            showToast("Creating driver account...", "info");
+            
             const cred = await createUserWithEmailAndPassword(
                 secondaryAuth, 
-                dEmail.value, 
-                dPass.value
+                dEmail, 
+                dPass
             );
             
             await UserService.create({
                 uid: cred.user.uid,
-                fullName: dName.value,
-                email: dEmail.value,
+                fullName: dName,
+                email: dEmail,
                 role: "driver",
-                phone: dPhone.value,
-                assignedCar: dCar.value
+                phone: dPhone,
+                assignedCar: dCar
             });
             
             await signOut(secondaryAuth);
-            showToast("Driver registered!", "success");
+            showToast("Driver registered successfully!", "success");
             e.target.reset();
         } catch (error) {
-            showToast(error.message, "error");
+            console.error("Driver registration error:", error);
+            
+            let errorMessage = error.message;
+            if (error.code === 'auth/email-already-in-use') {
+                errorMessage = "Email already in use";
+            } else if (error.code === 'auth/weak-password') {
+                errorMessage = "Password too weak (min 6 characters)";
+            }
+            
+            showToast(errorMessage, "error");
         }
     });
     
-    // Student enrollment
+    // Student enrollment - FIXED VERSION
     document.getElementById('regStForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        // Implementation similar to driver registration but with more fields
-        // Will be added in full version
+        
+        // Get form values
+        const sName = document.getElementById('sName').value;
+        const sGender = document.getElementById('sGender').value;
+        const sDob = document.getElementById('sDob').value;
+        const sFather = document.getElementById('sFather').value;
+        const sFPhone = document.getElementById('sFPhone').value;
+        const sMother = document.getElementById('sMother').value;
+        const sMPhone = document.getElementById('sMPhone').value;
+        const sPrimary = document.getElementById('sPrimary').value;
+        const sPEmail = document.getElementById('sPEmail').value;
+        const sPPass = document.getElementById('sPPass').value;
+        const sAddr = document.getElementById('sAddr').value;
+        const sRouteSelect = document.getElementById('sRouteSelect').value;
+        
+        // Validate required fields
+        if (!sName || !sDob || !sPEmail || !sPPass || !sAddr) {
+            showToast("Please fill all required fields", "error");
+            return;
+        }
+        
+        try {
+            showToast("Creating parent account...", "info");
+            
+            // Create parent account
+            const parentCred = await createUserWithEmailAndPassword(
+                secondaryAuth,
+                sPEmail,
+                sPPass
+            );
+            
+            // Create parent user record
+            await UserService.create({
+                uid: parentCred.user.uid,
+                fullName: sFather || sMother || "Parent",
+                email: sPEmail,
+                role: "parent",
+                phone: sFPhone || sMPhone || "",
+                children: []
+            });
+            
+            // Create student record
+            const studentData = {
+                name: sName,
+                gender: sGender,
+                dob: sDob,
+                father: sFather,
+                fPhone: sFPhone,
+                mother: sMother,
+                mPhone: sMPhone,
+                primary: sPrimary,
+                parentUid: parentCred.user.uid,
+                address: sAddr,
+                pickupLoc: sAddr,
+                dropoffLoc: sAddr,
+                routeId: sRouteSelect || null,
+                status: "AWAITING",
+                stopOrder: null,
+                minsAM: null,
+                minsPM: null,
+                doneAM: false,
+                donePM: false,
+                createdAt: new Date().toISOString()
+            };
+            
+            await StudentService.create(studentData);
+            
+            // Sign out from secondary auth
+            await signOut(secondaryAuth);
+            
+            showToast("Student enrolled successfully!", "success");
+            e.target.reset();
+            
+        } catch (error) {
+            console.error("Enrollment error:", error);
+            
+            let errorMessage = error.message;
+            if (error.code === 'auth/email-already-in-use') {
+                errorMessage = "Parent email already in use";
+            } else if (error.code === 'auth/weak-password') {
+                errorMessage = "Password too weak (min 6 characters)";
+            }
+            
+            showToast(errorMessage, "error");
+        }
     });
     
     // Global functions for onclick handlers
     window.setRouteDriver = async (routeId, session, driverUid) => {
-        await RouteService.setDriver(routeId, session, driverUid);
-        showToast("Driver assigned", "success");
+        try {
+            await RouteService.setDriver(routeId, session, driverUid);
+            showToast("Driver assigned", "success");
+        } catch (error) {
+            console.error("Error assigning driver:", error);
+            showToast("Failed to assign driver", "error");
+        }
     };
     
     window.delDoc = async (collection, id) => {
         if (!await confirmAction("Delete this item?")) return;
         
-        if (collection === 'routes') {
-            await RouteService.delete(id);
-        } else if (collection === 'students') {
-            await StudentService.delete(id);
+        try {
+            if (collection === 'routes') {
+                await RouteService.delete(id);
+            } else if (collection === 'students') {
+                await StudentService.delete(id);
+            }
+            showToast("Deleted successfully", "success");
+        } catch (error) {
+            console.error("Delete error:", error);
+            showToast("Failed to delete", "error");
         }
-        showToast("Deleted", "success");
     };
     
     window.resetAllStudents = async () => {
         if (!await confirmAction("Reset ALL students for new day?")) return;
         
-        const batch = writeBatch(db);
-        const snap = await getDocs(collection(db, "students"));
-        snap.forEach(d => batch.update(d.ref, { 
-            status: "AWAITING", 
-            doneAM: false, 
-            donePM: false 
-        }));
-        await batch.commit();
-        showToast("System reset!", "success");
+        try {
+            const batch = writeBatch(db);
+            const snap = await getDocs(collection(db, "students"));
+            snap.forEach(d => batch.update(d.ref, { 
+                status: "AWAITING", 
+                doneAM: false, 
+                donePM: false 
+            }));
+            await batch.commit();
+            showToast("System reset complete!", "success");
+        } catch (error) {
+            console.error("Reset error:", error);
+            showToast("Failed to reset", "error");
+        }
     };
     
     window.setStudentFieldNumber = async (sid, field, val) => {
@@ -329,13 +446,39 @@ function setupAdminListeners(routesList, driverMap) {
             showToast("Invalid number", "error");
             return;
         }
-        await StudentService.update(sid, { [field]: v });
+        try {
+            await StudentService.update(sid, { [field]: v });
+            showToast("Updated", "success");
+        } catch (error) {
+            console.error("Update error:", error);
+            showToast("Failed to update", "error");
+        }
     };
     
     window.updateStudentLocation = async (sid, type, address) => {
+        if (!address) {
+            showToast("Address cannot be empty", "error");
+            return;
+        }
+        
         const field = type === 'pickup' ? 'pickupLoc' : 'dropoffLoc';
-        await StudentService.update(sid, { [field]: address });
-        showToast("Location updated", "success");
+        try {
+            await StudentService.update(sid, { [field]: address });
+            showToast("Location updated", "success");
+        } catch (error) {
+            console.error("Location update error:", error);
+            showToast("Failed to update location", "error");
+        }
+    };
+    
+    window.setStudentRoute = async (sid, routeId) => {
+        try {
+            await StudentService.update(sid, { routeId });
+            showToast("Route updated", "success");
+        } catch (error) {
+            console.error("Route update error:", error);
+            showToast("Failed to update route", "error");
+        }
     };
 }
 
@@ -368,8 +511,13 @@ function loadStudents(routesList) {
         
         // Update counts
         document.getElementById('studentCount').textContent = snap.size;
-        document.getElementById('leaveCount').textContent = 
-            snap.docs.filter(d => d.data().status === 'LEAVE').length;
+        
+        const leaveCount = snap.docs.filter(d => d.data().status === 'LEAVE').length;
+        document.getElementById('leaveCount').textContent = leaveCount;
+        
+        // Update completed count (students with doneAM true)
+        const completedCount = snap.docs.filter(d => d.data().doneAM === true).length;
+        document.getElementById('completedCount').textContent = completedCount;
         
         tbody.innerHTML = snap.docs.map(d => {
             const s = d.data();
@@ -384,45 +532,40 @@ function loadStudents(routesList) {
                 <tr>
                     <td>
                         <b>${escapeHtml(s.name || '')}</b>
-                        ${s.status === 'LEAVE' ? '<span class="badge bg-danger">LEAVE</span>' : ''}
+                        ${s.status === 'LEAVE' ? '<span class="badge bg-danger" style="margin-left:5px;">LEAVE</span>' : ''}
                     </td>
                     <td>
-                        <select onchange="window.setStudentRoute('${sid}', this.value)">
+                        <select onchange="window.setStudentRoute('${sid}', this.value)" style="max-width:120px;">
                             ${rtOptions}
                         </select>
                     </td>
                     <td>
                         <input type="text" value="${escapeHtml(s.pickupLoc || s.address || '')}" 
                                onchange="window.updateStudentLocation('${sid}', 'pickup', this.value)"
-                               placeholder="Pickup">
+                               placeholder="Pickup" style="max-width:150px;">
                     </td>
                     <td>
                         <input type="text" value="${escapeHtml(s.dropoffLoc || s.address || '')}" 
                                onchange="window.updateStudentLocation('${sid}', 'dropoff', this.value)"
-                               placeholder="Dropoff">
+                               placeholder="Dropoff" style="max-width:150px;">
                     </td>
                     <td>
-                        <input type="number" min="1" value="${s.stopOrder ?? ''}" style="width:70px;"
+                        <input type="number" min="1" value="${s.stopOrder ?? ''}" style="width:60px;"
                                onchange="window.setStudentFieldNumber('${sid}','stopOrder', this.value)">
                     </td>
                     <td>
-                        <input type="number" min="0" value="${s.minsAM ?? ''}" style="width:70px;"
+                        <input type="number" min="0" value="${s.minsAM ?? ''}" style="width:60px;"
                                onchange="window.setStudentFieldNumber('${sid}','minsAM', this.value)">
                     </td>
                     <td>
-                        <input type="number" min="0" value="${s.minsPM ?? ''}" style="width:70px;"
+                        <input type="number" min="0" value="${s.minsPM ?? ''}" style="width:60px;"
                                onchange="window.setStudentFieldNumber('${sid}','minsPM', this.value)">
                     </td>
                     <td>
-                        <button onclick="window.delDoc('students','${sid}')" class="btn-danger">🗑️</button>
+                        <button onclick="window.delDoc('students','${sid}')" class="btn-danger btn-sm">🗑️</button>
                     </td>
                 </tr>
             `;
         }).join('');
     });
 }
-
-window.setStudentRoute = async (sid, routeId) => {
-    await StudentService.update(sid, { routeId });
-    showToast("Route updated", "success");
-};
